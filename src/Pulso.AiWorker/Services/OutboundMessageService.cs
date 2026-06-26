@@ -16,7 +16,7 @@ public sealed class OutboundMessageService : IOutboundMessageService
 {
     private const string LocationRequestMessage =
         "Hemos recibido tu reporte de emergencia en PULSO, pero no pudimos ubicar tu posición. " +
-        "Por favor toca el ícono de adjuntar (+) en el chat y selecciona 'Ubicación' para " +
+        "Por favor toca el ícono de adjuntar 📎 en el chat y selecciona 'Ubicación' para " +
         "enviarnos tus coordenadas GPS exactas.";
 
     private readonly HttpClient _httpClient;
