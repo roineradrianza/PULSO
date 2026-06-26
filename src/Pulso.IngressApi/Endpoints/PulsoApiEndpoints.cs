@@ -63,6 +63,7 @@ public static class PulsoApiEndpoints
                         found_person_name,
                         COALESCE(is_hardware_gps, false) as is_hardware_gps,
                         (COALESCE(triage_provider, 'gemini') <> 'gemini') as needs_review,
+                        COALESCE(found_person_verified, false) as found_person_verified,
                         created_at
                     FROM public.incidents
                     WHERE status != 'DUPLICATE'"
@@ -87,12 +88,13 @@ public static class PulsoApiEndpoints
                     var personName = reader.IsDBNull(6) ? null : reader.GetString(6);
                     var isHardwareGps = !reader.IsDBNull(7) && reader.GetBoolean(7);
                     var needsReview = !reader.IsDBNull(8) && reader.GetBoolean(8);
-                    var createdAt = reader.GetDateTime(9);
+                    var foundPersonVerified = !reader.IsDBNull(9) && reader.GetBoolean(9);
+                    var createdAt = reader.GetDateTime(10);
 
                     list.Add(new SituationItem(
                         id, category, severity, sector, lat, lng,
                         !string.IsNullOrEmpty(personName), personName,
-                        isHardwareGps, needsReview, createdAt));
+                        isHardwareGps, needsReview, foundPersonVerified, createdAt));
                 }
             }
             catch (Exception ex)

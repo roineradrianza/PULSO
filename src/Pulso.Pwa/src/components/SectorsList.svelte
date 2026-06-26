@@ -86,7 +86,7 @@
             </div>
             {#if stat.people_found.length > 0}
               <div class="sector-people-container">
-                <span class="people-label">Encontrados a salvo ({stat.people_found.length}):</span>
+                <span class="people-label">Reportados a salvo · sin verificar ({stat.people_found.length}):</span>
                 <div class="people-badges">
                   {#each stat.people_found as person}
                     <span class="person-badge" title={person}>{person}</span>

@@ -19,7 +19,7 @@
   <div class="stat-card">
     <div>
       <div class="stat-value" style="color: var(--success-green);">{peopleFound}</div>
-      <div class="stat-label">Personas Encontradas (A Salvo)</div>
+      <div class="stat-label">Personas Reportadas a Salvo</div>
     </div>
     <div class="stat-icon">✅</div>
   </div>

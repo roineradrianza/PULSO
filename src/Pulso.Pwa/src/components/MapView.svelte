@@ -22,13 +22,15 @@
   const RANK_COLOR = ['var(--info-blue)', 'var(--warning-amber)', 'var(--accent-orange)', 'var(--danger-red)'];
 
   function severityColor(sit) {
-    if (sit.is_person_found) return 'var(--success-green)';
+    if (sit.is_person_found) {
+      return sit.found_person_verified ? 'var(--success-green)' : 'var(--warning-amber)';
+    }
     return RANK_COLOR[SEVERITY_RANK[sit.severity] ?? 0];
   }
 
   // Firma de lo que afecta el render del marcador (para detectar cambios).
   function signature(sit) {
-    return `${sit.latitude},${sit.longitude},${sit.severity},${sit.is_person_found},${sit.is_hardware_gps},${sit.needs_review}`;
+    return `${sit.latitude},${sit.longitude},${sit.severity},${sit.is_person_found},${sit.found_person_verified},${sit.is_hardware_gps},${sit.needs_review}`;
   }
 
   // Chip de precisión de ubicación, en lenguaje simple para cualquier persona.
@@ -79,7 +81,32 @@
 
     const title = document.createElement('h4');
     title.style.cssText = `margin-bottom: 4px; font-family: 'Outfit'; color: ${color};`;
-    title.textContent = sit.is_person_found ? '✅ Persona Localizada' : '⚠️ Reporte de Incidente';
+    title.textContent = sit.is_person_found ? '🟡 Persona reportada a salvo' : '⚠️ Reporte de Incidente';
+
+    let verificationBadge = null;
+    let unverifiedNote = null;
+    if (sit.is_person_found) {
+      verificationBadge = document.createElement('div');
+      verificationBadge.style.cssText =
+        'display: inline-flex; align-items: center; gap: 4px; font-size: 11px; ' +
+        'font-weight: 700; padding: 2px 8px; border-radius: 4px; margin-bottom: 8px; margin-right: 6px;';
+      
+      if (sit.found_person_verified) {
+        verificationBadge.style.background = 'rgba(76, 175, 80, 0.15)';
+        verificationBadge.style.color = 'var(--success-green)';
+        verificationBadge.textContent = '✓ Confirmado';
+      } else {
+        verificationBadge.style.background = 'rgba(255, 193, 7, 0.15)';
+        verificationBadge.style.color = 'var(--warning-amber)';
+        verificationBadge.textContent = 'Sin verificar';
+
+        unverifiedNote = document.createElement('div');
+        unverifiedNote.style.cssText =
+          'font-size: 11px; color: var(--text-muted); font-style: italic; ' +
+          'margin-top: 4px; margin-bottom: 8px; border-left: 2px solid var(--warning-amber); padding-left: 6px;';
+        unverifiedNote.textContent = 'Reporte ciudadano. Confírmalo antes de suspender la búsqueda.';
+      }
+    }
 
     const confidence = buildConfidenceChip(sit);
 
@@ -99,7 +126,15 @@
       meta.append(name);
     }
 
-    wrap.append(title, confidence, body, meta);
+    wrap.append(title);
+    if (verificationBadge) {
+      wrap.append(verificationBadge);
+    }
+    wrap.append(confidence);
+    if (unverifiedNote) {
+      wrap.append(unverifiedNote);
+    }
+    wrap.append(body, meta);
 
     // Detalle lazy: usar caché o descargar.
     const cached = detailCache.get(sit.id);

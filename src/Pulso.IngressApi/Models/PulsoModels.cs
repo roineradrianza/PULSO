@@ -32,6 +32,7 @@ public record SituationItem(
     // true cuando el reporte fue clasificado por el sistema de respaldo (no el motor
     // principal de IA): se muestra como "por confirmar" en la interfaz.
     [property: JsonPropertyName("needs_review")] bool NeedsReview,
+    [property: JsonPropertyName("found_person_verified")] bool FoundPersonVerified,
     [property: JsonPropertyName("created_at")] DateTime CreatedAt
 );
 

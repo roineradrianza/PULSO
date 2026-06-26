@@ -34,6 +34,7 @@
           <li><strong>Seguridad de sus datos:</strong> Sus datos telefónicos, de contacto y ubicación están protegidos y viajan encriptados de forma segura por internet para evitar filtraciones o riesgos.</li>
           <li><strong>Uso correcto:</strong> Por favor, reporte solo información verdadera sobre la emergencia. Queda prohibido enviar reportes falsos o ubicaciones fuera de Venezuela.</li>
           <li><strong>Información pública y voluntaria:</strong> Al enviar un reporte, la información se mostrará en el mapa para que brigadas de voluntarios, familiares y vecinos puedan colaborar. Tenga en cuenta que este es un portal de ayuda ciudadana y no garantiza la llegada de bomberos o autoridades oficiales.</li>
+          <li><strong>Reportes de personas a salvo:</strong> Los avisos de personas localizadas o a salvo son aportes de otros ciudadanos que no han sido verificados oficialmente. Confirme siempre la información directamente antes de suspender o detener una búsqueda.</li>
         </ul>
       </div>
     </div>
