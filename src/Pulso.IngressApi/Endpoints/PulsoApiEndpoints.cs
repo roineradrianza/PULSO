@@ -38,7 +38,7 @@ public static class PulsoApiEndpoints
         });
 
         // Situaciones georreferenciadas (payload LIVIANO, sin raw_text).
-        // ?since=<ISO8601> -> carga incremental (delta); ?limit=N -> tope de filas.
+        // ?since=<ISO8601> -> carga incremental (delta); ?limit=N -> tope de filas; ?date=YYYY-MM-DD -> filtrar por día.
         app.MapGet("/api/v1/pulso/situations", async (HttpRequest request, IConfiguration config) =>
         {
             var connStr = config.GetConnectionString("DefaultConnection");
@@ -46,6 +46,8 @@ public static class PulsoApiEndpoints
 
             DateTimeOffset? since = DateTimeOffset.TryParse(request.Query["since"].ToString(), out var s) ? s : null;
             int limit = int.TryParse(request.Query["limit"].ToString(), out var l) ? Math.Clamp(l, 1, 2000) : 500;
+            var dateStr = request.Query["date"].ToString();
+            var (utcStart, utcEnd) = GetUtcDateRange(dateStr);
 
             try
             {
@@ -66,13 +68,16 @@ public static class PulsoApiEndpoints
                         COALESCE(found_person_verified, false) as found_person_verified,
                         created_at
                     FROM public.incidents
-                    WHERE status != 'DUPLICATE'"
+                    WHERE status != 'DUPLICATE'
+                      AND created_at >= @utcStart AND created_at <= @utcEnd"
                     + (since.HasValue ? " AND created_at > @since" : "")
                     + @"
                     ORDER BY created_at DESC
                     LIMIT @limit";
 
                 await using var cmd = new NpgsqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("utcStart", utcStart);
+                cmd.Parameters.AddWithValue("utcEnd", utcEnd);
                 if (since.HasValue) cmd.Parameters.AddWithValue("since", since.Value.UtcDateTime);
                 cmd.Parameters.AddWithValue("limit", limit);
                 await using var reader = await cmd.ExecuteReaderAsync();
@@ -171,9 +176,11 @@ public static class PulsoApiEndpoints
         });
 
         // Obtener agregación de estatus consolidado por sector.
-        app.MapGet("/api/v1/pulso/locations/stats", async (IConfiguration config) =>
+        app.MapGet("/api/v1/pulso/locations/stats", async (HttpRequest request, IConfiguration config) =>
         {
             var connStr = config.GetConnectionString("DefaultConnection");
+            var dateStr = request.Query["date"].ToString();
+            var (utcStart, utcEnd) = GetUtcDateRange(dateStr);
             var list = new List<LocationStat>();
 
             try
@@ -196,9 +203,12 @@ public static class PulsoApiEndpoints
                         AVG(ST_X(coordinates::geometry)) as longitude
                     FROM public.incidents
                     WHERE status != 'DUPLICATE' AND sector IS NOT NULL AND sector != ''
+                      AND created_at >= @utcStart AND created_at <= @utcEnd
                     GROUP BY sector_name";
 
                 await using var cmd = new NpgsqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("utcStart", utcStart);
+                cmd.Parameters.AddWithValue("utcEnd", utcEnd);
                 await using var reader = await cmd.ExecuteReaderAsync();
 
                 while (await reader.ReadAsync())
@@ -317,6 +327,23 @@ public static class PulsoApiEndpoints
 
             return Results.Ok(new MetricsResponse(engineStats, channelStats, hourlyDistribution, peakHours));
         });
+    }
+
+    private static (DateTime utcStart, DateTime utcEnd) GetUtcDateRange(string? dateStr)
+    {
+        var zone = TimeZoneInfo.FindSystemTimeZoneById("America/Caracas");
+        var nowInVet = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone);
+        
+        DateTime targetDate;
+        if (!DateTime.TryParse(dateStr, out targetDate))
+        {
+            targetDate = nowInVet.Date;
+        }
+        
+        var localStart = new DateTime(targetDate.Year, targetDate.Month, targetDate.Day, 0, 0, 0, DateTimeKind.Unspecified);
+        var localEnd = new DateTime(targetDate.Year, targetDate.Month, targetDate.Day, 23, 59, 59, DateTimeKind.Unspecified);
+        
+        return (TimeZoneInfo.ConvertTimeToUtc(localStart, zone), TimeZoneInfo.ConvertTimeToUtc(localEnd, zone));
     }
 }
 

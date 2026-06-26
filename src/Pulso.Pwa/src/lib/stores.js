@@ -4,6 +4,21 @@ import { writable } from 'svelte/store';
 // Estado de conexión de red.
 export const online = writable(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
+// Calcular la fecha de hoy en America/Caracas para la inicialización
+function getTodayInVet() {
+  const d = new Date();
+  const formatter = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'America/Caracas',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(d);
+}
+
+// Filtro de fecha seleccionado
+export const selectedDate = writable(getTodayInVet());
+
 // Datos cargados desde la API.
 export const situations = writable([]);
 export const sectorStats = writable([]);

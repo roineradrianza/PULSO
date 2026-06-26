@@ -1,5 +1,5 @@
 <script>
-  import { sectorStats, situations, mapFocus, showToast } from '../lib/stores.js';
+  import { sectorStats, situations, mapFocus, showToast, selectedDate } from '../lib/stores.js';
 
   let query = '';
 
@@ -57,12 +57,28 @@
 <div class="card" style="padding: 20px;">
   <div class="sector-search-container">
     <h2 style="font-size: 18px; font-weight: 700;">Lista de Sectores y Personas Encontradas</h2>
-    <input
-      type="text"
-      class="sector-search-input"
-      placeholder="Escriba un sector o nombre (ej: Altamira, Pedro)..."
-      bind:value={query}
-    />
+    
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; width: 100%;">
+      <input
+        type="text"
+        class="sector-search-input"
+        placeholder="Escriba un sector o nombre (ej: Altamira, Pedro)..."
+        bind:value={query}
+        style="flex: 1; min-width: 180px;"
+      />
+      <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+        <span style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Día:</span>
+        <input 
+          type="date" 
+          bind:value={$selectedDate}
+          class="custom-datepicker"
+          style="background: rgba(0, 0, 0, 0.3); border: 1px solid var(--card-border); border-radius: 8px; color: var(--text-main); padding: 10px 14px; font-size: 14px; outline: none; font-family: 'Inter', sans-serif; cursor: pointer; transition: border-color 0.2s ease;"
+          on:focus={(e) => e.target.style.borderColor = 'var(--accent-orange)'}
+          on:blur={(e) => e.target.style.borderColor = 'var(--card-border)'}
+          on:click={(e) => e.target.showPicker()}
+        />
+      </div>
+    </div>
   </div>
 
   <div class="sectors-list">
@@ -104,3 +120,10 @@
     {/if}
   </div>
 </div>
+
+<style>
+  .custom-datepicker::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+  }
+</style>

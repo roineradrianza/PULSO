@@ -5,10 +5,11 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 // Situaciones livianas (sin raw_text). `since` (ISO) trae solo el delta; `limit` topa filas.
-export async function fetchSituations({ since = null, limit = 500 } = {}) {
+export async function fetchSituations({ since = null, limit = 500, date = null } = {}) {
   const params = new URLSearchParams();
   if (since) params.set('since', since);
   if (limit) params.set('limit', String(limit));
+  if (date) params.set('date', date);
   const res = await fetch(`${API_BASE_URL}/api/v1/pulso/situations?${params.toString()}`);
   if (!res.ok) throw new Error('No se pudieron cargar las situaciones.');
   return res.json();
@@ -28,8 +29,9 @@ export async function fetchSummary() {
   return res.json();
 }
 
-export async function fetchSectorStats() {
-  const res = await fetch(`${API_BASE_URL}/api/v1/pulso/locations/stats`);
+export async function fetchSectorStats(date = null) {
+  const url = date ? `${API_BASE_URL}/api/v1/pulso/locations/stats?date=${encodeURIComponent(date)}` : `${API_BASE_URL}/api/v1/pulso/locations/stats`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error('No se pudieron cargar las estadísticas por sector.');
   return res.json();
 }

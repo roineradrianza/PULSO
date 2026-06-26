@@ -9,13 +9,18 @@
   import SectorsList from './components/SectorsList.svelte';
   import ReportForm from './components/ReportForm.svelte';
   import Toast from './components/Toast.svelte';
-  import { online, pendingCount, showToast } from './lib/stores.js';
+  import { online, pendingCount, showToast, selectedDate } from './lib/stores.js';
   import { loadInitial, loadDelta, loadFromCache } from './lib/data.js';
   import { startRealtime, stopRealtime } from './lib/realtime.js';
   import { countQueued } from './lib/db.js';
 
   let pollTimer;
   let currentView = 'main';
+
+  // Carga reactiva de datos al cambiar la fecha seleccionada o al recuperar red
+  $: if ($selectedDate && $online) {
+    loadInitial($selectedDate);
+  }
 
   function updateViewFromHash() {
     currentView = window.location.hash === '#/metrics' ? 'metrics' : 'main';
@@ -39,7 +44,6 @@
   function handleOnline() {
     online.set(true);
     showToast('Conexión restablecida. Cargando datos y listo para sincronizar.');
-    loadInitial();
   }
 
   function handleOffline() {
@@ -67,8 +71,6 @@
     if (!navigator.onLine && savedAt) {
       showToast(`Mostrando últimos datos guardados (${relativeTime(savedAt)}).`, true);
     }
-
-    if (navigator.onLine) loadInitial();
 
     // Tiempo real vía SSE (dispara delta al instante); el polling queda como respaldo.
     startRealtime(notifyNew);

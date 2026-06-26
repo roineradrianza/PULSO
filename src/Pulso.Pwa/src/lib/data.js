@@ -10,6 +10,7 @@ let watermark = null;          // mayor created_at visto (ISO 8601)
 const byId = new Map();        // id -> situación (estado fusionado en memoria)
 let lastStats = [];
 let lastSummary = null;
+let currentQueryDate = null;   // fecha de consulta activa (formato YYYY-MM-DD o null)
 
 function publish() {
   // Ordenar por created_at DESC para consistencia con el backend.
@@ -23,9 +24,9 @@ function track(item) {
 }
 
 // Refresca los agregados livianos (sectores, resumen, métricas) en paralelo.
-async function refreshAggregates() {
+async function refreshAggregates(date = null) {
   const [stats, summ, metrics] = await Promise.all([
-    fetchSectorStats(),
+    fetchSectorStats(date),
     fetchSummary(),
     fetchSystemMetrics()
   ]);
@@ -42,12 +43,13 @@ function persistSnapshot(merged) {
 }
 
 // Carga inicial completa: reemplaza el estado en memoria.
-export async function loadInitial() {
+export async function loadInitial(date = null) {
   if (!navigator.onLine) return 0;
   try {
+    currentQueryDate = date;
     const [sits] = await Promise.all([
-      fetchSituations({ since: null, limit: 500 }),
-      refreshAggregates()
+      fetchSituations({ since: null, limit: 500, date }),
+      refreshAggregates(date)
     ]);
 
     byId.clear();
@@ -70,8 +72,8 @@ export async function loadDelta() {
   if (!navigator.onLine) return 0;
   try {
     const [delta] = await Promise.all([
-      fetchSituations({ since: watermark, limit: 500 }),
-      refreshAggregates()
+      fetchSituations({ since: watermark, limit: 500, date: currentQueryDate }),
+      refreshAggregates(currentQueryDate)
     ]);
 
     let newCount = 0;
