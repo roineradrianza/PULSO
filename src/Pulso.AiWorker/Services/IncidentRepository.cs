@@ -133,4 +133,64 @@ public sealed class IncidentRepository : IIncidentRepository
         var result = await cmd.ExecuteScalarAsync(cancellationToken);
         return result is Guid guid ? guid : null;
     }
+
+    /// <inheritdoc/>
+    public async Task UpsertPendingLocationAsync(
+        string channel,
+        string phone,
+        double latitude,
+        double longitude,
+        CancellationToken cancellationToken)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        // Una fila por remitente: si comparte su ubicación de nuevo antes de describir,
+        // la más reciente reemplaza a la anterior y se reinicia la ventana (created_at).
+        await using var cmd = new NpgsqlCommand(@"
+            INSERT INTO public.pending_locations (source_channel, sender_phone, latitude, longitude, created_at)
+            VALUES (@channel, @phone, @lat, @lng, now())
+            ON CONFLICT (source_channel, sender_phone)
+            DO UPDATE SET latitude = excluded.latitude,
+                          longitude = excluded.longitude,
+                          created_at = now()", conn);
+
+        cmd.Parameters.AddWithValue("channel", channel);
+        cmd.Parameters.AddWithValue("phone",   phone);
+        cmd.Parameters.AddWithValue("lat",     latitude);
+        cmd.Parameters.AddWithValue("lng",     longitude);
+
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<(double Latitude, double Longitude)?> TryConsumePendingLocationAsync(
+        string channel,
+        string phone,
+        CancellationToken cancellationToken)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        // Atómico: borra y devuelve la ubicación pendiente del remitente si sigue
+        // vigente (< 2 h). Las pendientes más viejas se ignoran (y se limpian aquí).
+        await using var cmd = new NpgsqlCommand(@"
+            DELETE FROM public.pending_locations
+            WHERE source_channel = @channel
+              AND sender_phone   = @phone
+              AND created_at >= now() - interval '2 hours'
+            RETURNING latitude, longitude", conn);
+
+        cmd.Parameters.AddWithValue("channel", channel);
+        cmd.Parameters.AddWithValue("phone",   phone);
+
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            var lat = reader.GetDouble(0);
+            var lng = reader.GetDouble(1);
+            return (lat, lng);
+        }
+        return null;
+    }
 }

@@ -23,9 +23,13 @@ public class Worker : BackgroundService
     // Mensajes de confirmación hacia el ciudadano (best-effort, por el canal de origen).
     private const string AckReceivedMessage =
         "✅ Recibimos tu reporte. Lo estamos procesando…";
-    private const string OrphanLocationMessage =
-        "Recibimos tu ubicación, pero no encontramos un reporte reciente para asociarla. " +
-        "Por favor envía primero la descripción del incidente.";
+    private const string LocationBufferedMessage =
+        "📍 Recibimos tu ubicación. Ahora cuéntame qué está ocurriendo y dónde " +
+        "(puedes escribir, enviar una nota de voz 🎤 o una foto 📷) para completar tu reporte.";
+    private const string OutOfVenezuelaMessage =
+        "📍 La ubicación que compartiste está fuera de Venezuela, por eso no podemos " +
+        "registrarla. PULSO solo cubre emergencias dentro del país. Si fue un error, " +
+        "comparte de nuevo tu ubicación en Venezuela.";
     private const string MediaFailedMessage =
         "No pudimos procesar el archivo que enviaste. Por favor reenvíalo o descríbenos por " +
         "texto qué está ocurriendo.";
@@ -156,29 +160,41 @@ public class Worker : BackgroundService
         {
             activity?.SetTag("pulso.operation", "attach-location");
             var (replyLat, replyLng) = SanitizeCoordinates(payload.Latitude, payload.Longitude);
-            if (replyLat.HasValue && replyLng.HasValue)
-            {
-                var attachedId = await _incidentRepo.TryAttachLocationToRecentAsync(
-                    payload.Channel, payload.Phone, replyLat.Value, replyLng.Value, cancellationToken);
 
-                if (attachedId.HasValue)
-                {
-                    _logger.LogInformation(
-                        "Location attached to the sender's previous report {id}.", attachedId.Value);
-                    await PublishIncidentSignalAsync(attachedId.Value);
-                    var url = GetPlatformUrl();
-                    await _outbound.SendTextAsync(payload,
-                        $"📍 Ubicación recibida. Tu reporte está completo.\n" +
-                        $"Puedes visualizarlo en el mapa interactivo en: {url}\n\n" +
-                        $"Gracias por ayudar.",
-                        cancellationToken);
-                }
-                else
-                {
-                    // Sin reporte previo asociado: una ubicación sola no es accionable.
-                    _logger.LogInformation("Location received with no pending report to attach to; ignored.");
-                    await _outbound.SendTextAsync(payload, OrphanLocationMessage, cancellationToken);
-                }
+            // La ubicación llegó fuera del bounding box de Venezuela: no la registramos
+            // y se lo explicamos (antes esto quedaba en silencio total).
+            if (!replyLat.HasValue || !replyLng.HasValue)
+            {
+                _logger.LogInformation("Shared location is outside Venezuela; informing the citizen.");
+                await _outbound.SendTextAsync(payload, OutOfVenezuelaMessage, cancellationToken);
+                return;
+            }
+
+            // Caso normal (descripción → ubicación): adjuntar al reporte previo del remitente.
+            var attachedId = await _incidentRepo.TryAttachLocationToRecentAsync(
+                payload.Channel, payload.Phone, replyLat.Value, replyLng.Value, cancellationToken);
+
+            if (attachedId.HasValue)
+            {
+                _logger.LogInformation(
+                    "Location attached to the sender's previous report {id}.", attachedId.Value);
+                await PublishIncidentSignalAsync(attachedId.Value);
+                var url = GetPlatformUrl();
+                await _outbound.SendTextAsync(payload,
+                    $"📍 Ubicación recibida. Tu reporte está completo.\n" +
+                    $"Puedes visualizarlo en el mapa interactivo en: {url}\n\n" +
+                    $"Gracias por ayudar.",
+                    cancellationToken);
+            }
+            else
+            {
+                // Flujo ubicación → descripción: el usuario compartió su ubicación ANTES
+                // de describir. No la descartamos: la bufferizamos para asociarla cuando
+                // llegue la descripción, y le pedimos que cuente qué ocurre.
+                await _incidentRepo.UpsertPendingLocationAsync(
+                    payload.Channel, payload.Phone, replyLat.Value, replyLng.Value, cancellationToken);
+                _logger.LogInformation("No previous report; pending location buffered for the sender.");
+                await _outbound.SendTextAsync(payload, LocationBufferedMessage, cancellationToken);
             }
             return;
         }
@@ -242,6 +258,21 @@ public class Worker : BackgroundService
         // 3. Validar coordenadas dentro del bounding box de Venezuela
         var (latitude, longitude) = SanitizeCoordinates(payload.Latitude, payload.Longitude);
         var isApproximate = false;
+
+        // 3b. Flujo ubicación → descripción: si este reporte no trae GPS propio, ver si el
+        //     remitente compartió su ubicación ANTES de describir. Si hay una pendiente
+        //     vigente, la consumimos y la usamos como ubicación EXACTA (no aproximada).
+        if (!latitude.HasValue || !longitude.HasValue)
+        {
+            var pending = await _incidentRepo.TryConsumePendingLocationAsync(
+                payload.Channel, payload.Phone, cancellationToken);
+            if (pending is not null)
+            {
+                latitude  = pending.Value.Latitude;
+                longitude = pending.Value.Longitude;
+                _logger.LogInformation("Consumed a pending location the sender shared before describing.");
+            }
+        }
 
         // 4. Plan B: sin GPS de hardware, geocodificar la dirección/sector inferidos por la IA
         //    para obtener coordenadas APROXIMADAS (preferir la dirección sobre el sector).
