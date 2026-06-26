@@ -21,7 +21,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'PULSO - Portal Público de Situación de Emergencias',
+        name: 'PULSO - Plataforma Unificada de Lectura y Seguimiento Offline',
         short_name: 'PULSO',
         description: 'Reporte y seguimiento de emergencias en tiempo real, con soporte offline.',
         lang: 'es',
