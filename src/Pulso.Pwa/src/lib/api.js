@@ -16,6 +16,13 @@ export async function fetchSectorStats() {
   return res.json();
 }
 
+export async function fetchSystemMetrics() {
+  const res = await fetch(`${API_BASE_URL}/api/v1/pulso/metrics`);
+  if (!res.ok) throw new Error('No se pudieron cargar las métricas del sistema.');
+  return res.json();
+}
+
+
 export async function sendToApi(incident) {
   const res = await fetch(`${API_BASE_URL}/api/v1/pulso/ingest`, {
     method: 'POST',

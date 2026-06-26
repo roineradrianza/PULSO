@@ -4,6 +4,7 @@
   import InfoDisclaimer from './components/InfoDisclaimer.svelte';
   import SyncCard from './components/SyncCard.svelte';
   import StatsDashboard from './components/StatsDashboard.svelte';
+  import MetricsDashboard from './components/MetricsDashboard.svelte';
   import MapView from './components/MapView.svelte';
   import SectorsList from './components/SectorsList.svelte';
   import ReportForm from './components/ReportForm.svelte';
@@ -54,6 +55,7 @@
   <InfoDisclaimer />
   <SyncCard on:synced={refreshPending} />
   <StatsDashboard />
+  <MetricsDashboard />
 
   <div class="workspace-grid">
     <MapView />

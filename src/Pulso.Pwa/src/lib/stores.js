@@ -7,6 +7,7 @@ export const online = writable(typeof navigator !== 'undefined' ? navigator.onLi
 // Datos cargados desde la API.
 export const situations = writable([]);
 export const sectorStats = writable([]);
+export const systemMetrics = writable(null);
 
 // Cantidad de reportes en la cola offline.
 export const pendingCount = writable(0);
