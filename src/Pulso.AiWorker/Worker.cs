@@ -30,6 +30,15 @@ public class Worker : BackgroundService
     private const string MediaFailedMessage =
         "No pudimos procesar el archivo que enviaste. Por favor reenvíalo o descríbenos por " +
         "texto qué está ocurriendo.";
+    private const string WelcomeMessage =
+        "👋 ¡Bienvenido a PULSO!\n\n" +
+        "Somos una cartelera pública para reportar emergencias en Venezuela: desastres, " +
+        "daños en calles o casas, y personas desaparecidas o encontradas a salvo.\n\n" +
+        "Para reportar, envíame directamente:\n" +
+        "📝 Una descripción de lo que ocurre (qué pasó y dónde).\n" +
+        "📍 Tu ubicación (toca 📎 y elige \"Ubicación\") para marcarlo en el mapa.\n" +
+        "🎤 También puedes enviar una nota de voz o 📷 una foto.\n\n" +
+        "Tu reporte ayuda a coordinar la ayuda. ¡Gracias por sumarte!";
 
     // Límite geográfico de Venezuela (bounding box).
     // Coordenadas fuera de este rectángulo se descartan para evitar el
@@ -125,7 +134,17 @@ public class Worker : BackgroundService
         activity?.SetTag("pulso.channel", payload.Channel);
         activity?.SetTag("messaging.system", "redis");
 
-        // 0. ¿Es una respuesta de ubicación? (coordenadas sin texto, p. ej. el usuario
+        // 0a. ¿Es un comando del bot (/start, /help, …)? No es un reporte: respondemos
+        //     con la bienvenida/ayuda (útil la primera vez que entran) y no creamos incidente.
+        if (IsBotCommand(payload))
+        {
+            activity?.SetTag("pulso.operation", "bot-command");
+            _logger.LogInformation("Bot command received; replying with welcome and skipping report.");
+            await _outbound.SendTextAsync(payload, WelcomeMessage, cancellationToken);
+            return;
+        }
+
+        // 0b. ¿Es una respuesta de ubicación? (coordenadas sin texto, p. ej. el usuario
         //    compartió su ubicación tras pedírsela el bot). En ese caso NO creamos un
         //    incidente vacío: adjuntamos las coordenadas al reporte previo del remitente.
         if (IsLocationReply(payload))
@@ -258,6 +277,15 @@ public class Worker : BackgroundService
         => payload.Latitude.HasValue
            && payload.Longitude.HasValue
            && string.IsNullOrWhiteSpace(payload.TextBody);
+
+    /// <summary>
+    /// Comando del bot de Telegram (texto que empieza por '/', p. ej. /start, /help).
+    /// No representa un reporte. Es un concepto de Telegram; otros canales no aplican.
+    /// </summary>
+    private static bool IsBotCommand(PulsoPayload payload)
+        => payload.Channel == "telegram"
+           && !string.IsNullOrWhiteSpace(payload.TextBody)
+           && payload.TextBody.TrimStart().StartsWith('/');
 
     /// <summary>
     /// True si el texto es contenido real del ciudadano (no un placeholder inyectado
