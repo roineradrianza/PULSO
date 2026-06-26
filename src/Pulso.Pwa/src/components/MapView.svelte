@@ -28,7 +28,36 @@
 
   // Firma de lo que afecta el render del marcador (para detectar cambios).
   function signature(sit) {
-    return `${sit.latitude},${sit.longitude},${sit.severity},${sit.is_person_found}`;
+    return `${sit.latitude},${sit.longitude},${sit.severity},${sit.is_person_found},${sit.is_hardware_gps},${sit.needs_review}`;
+  }
+
+  // Chip de precisión de ubicación, en lenguaje simple para cualquier persona.
+  // Verde = el pin está en el punto real (GPS); ámbar = ubicación aproximada.
+  function buildConfidenceChip(sit) {
+    const exact = sit.is_hardware_gps;
+    const chip = document.createElement('div');
+    chip.style.cssText =
+      'display: inline-flex; align-items: center; gap: 6px; font-size: 11px; ' +
+      'font-weight: 600; padding: 3px 9px; border-radius: 999px; margin-bottom: 8px; ' +
+      'background: rgba(255,255,255,0.06);';
+
+    const dot = document.createElement('span');
+    dot.style.cssText =
+      `width: 8px; height: 8px; border-radius: 50%; flex: none; ` +
+      `background: ${exact ? 'var(--success-green)' : 'var(--warning-amber)'};`;
+
+    const label = document.createElement('span');
+    label.textContent = exact ? 'Ubicación exacta' : 'Ubicación aproximada';
+
+    chip.append(dot, label);
+
+    if (sit.needs_review) {
+      const note = document.createElement('span');
+      note.style.cssText = 'color: var(--text-muted); font-weight: 500;';
+      note.textContent = '· Reporte por confirmar';
+      chip.append(note);
+    }
+    return chip;
   }
 
   function buildIcon(sit) {
@@ -52,6 +81,8 @@
     title.style.cssText = `margin-bottom: 4px; font-family: 'Outfit'; color: ${color};`;
     title.textContent = sit.is_person_found ? '✅ Persona Localizada' : '⚠️ Reporte de Incidente';
 
+    const confidence = buildConfidenceChip(sit);
+
     const body = document.createElement('p');
     body.style.cssText = 'font-size: 12px; margin-bottom: 6px;';
 
@@ -68,7 +99,7 @@
       meta.append(name);
     }
 
-    wrap.append(title, body, meta);
+    wrap.append(title, confidence, body, meta);
 
     // Detalle lazy: usar caché o descargar.
     const cached = detailCache.get(sit.id);

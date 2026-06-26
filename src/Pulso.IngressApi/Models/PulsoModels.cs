@@ -26,6 +26,12 @@ public record SituationItem(
     [property: JsonPropertyName("longitude")] double? Longitude,
     [property: JsonPropertyName("is_person_found")] bool IsPersonFound,
     [property: JsonPropertyName("found_person_name")] string? FoundPersonName,
+    // Precisión de la ubicación: true = coordenadas GPS de hardware (punto exacto);
+    // false = ubicación aproximada (derivada de texto, sin pin en el mapa por ahora).
+    [property: JsonPropertyName("is_hardware_gps")] bool IsHardwareGps,
+    // true cuando el reporte fue clasificado por el sistema de respaldo (no el motor
+    // principal de IA): se muestra como "por confirmar" en la interfaz.
+    [property: JsonPropertyName("needs_review")] bool NeedsReview,
     [property: JsonPropertyName("created_at")] DateTime CreatedAt
 );
 

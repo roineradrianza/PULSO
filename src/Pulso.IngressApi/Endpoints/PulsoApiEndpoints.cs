@@ -61,6 +61,8 @@ public static class PulsoApiEndpoints
                         ST_Y(coordinates::geometry) as latitude,
                         ST_X(coordinates::geometry) as longitude,
                         found_person_name,
+                        COALESCE(is_hardware_gps, false) as is_hardware_gps,
+                        (COALESCE(triage_provider, 'gemini') <> 'gemini') as needs_review,
                         created_at
                     FROM public.incidents
                     WHERE status != 'DUPLICATE'"
@@ -83,11 +85,14 @@ public static class PulsoApiEndpoints
                     double? lat = reader.IsDBNull(4) ? null : reader.GetDouble(4);
                     double? lng = reader.IsDBNull(5) ? null : reader.GetDouble(5);
                     var personName = reader.IsDBNull(6) ? null : reader.GetString(6);
-                    var createdAt = reader.GetDateTime(7);
+                    var isHardwareGps = !reader.IsDBNull(7) && reader.GetBoolean(7);
+                    var needsReview = !reader.IsDBNull(8) && reader.GetBoolean(8);
+                    var createdAt = reader.GetDateTime(9);
 
                     list.Add(new SituationItem(
                         id, category, severity, sector, lat, lng,
-                        !string.IsNullOrEmpty(personName), personName, createdAt));
+                        !string.IsNullOrEmpty(personName), personName,
+                        isHardwareGps, needsReview, createdAt));
                 }
             }
             catch (Exception ex)
