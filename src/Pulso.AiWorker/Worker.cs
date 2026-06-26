@@ -34,10 +34,11 @@ public class Worker : BackgroundService
         "👋 ¡Bienvenido a PULSO!\n\n" +
         "Somos una cartelera pública para reportar emergencias en Venezuela: desastres, " +
         "daños en calles o casas, y personas desaparecidas o encontradas a salvo.\n\n" +
-        "Para reportar, envíame directamente:\n" +
-        "📝 Una descripción de lo que ocurre (qué pasó y dónde).\n" +
-        "📍 Tu ubicación (toca 📎 y elige \"Ubicación\") para marcarlo en el mapa.\n" +
-        "🎤 También puedes enviar una nota de voz o 📷 una foto.\n\n" +
+        "Para crear un reporte sigue 2 pasos:\n\n" +
+        "📝 Paso 1: Describe lo que ocurre (qué pasó y dónde). Puedes escribirlo, enviar " +
+        "una nota de voz 🎤 o una foto 📷.\n\n" +
+        "📍 Paso 2: Comparte tu ubicación. Toca el ícono de adjuntar 📎 y elige " +
+        "\"Ubicación\" para marcarlo en el mapa.\n\n" +
         "Tu reporte ayuda a coordinar la ayuda. ¡Gracias por sumarte!";
 
     // Límite geográfico de Venezuela (bounding box).
