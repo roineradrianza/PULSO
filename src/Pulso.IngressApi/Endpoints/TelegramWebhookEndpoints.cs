@@ -57,15 +57,12 @@ public static class TelegramWebhookEndpoints
                 if (string.IsNullOrEmpty(textBody)) textBody = "[Imagen recibida]";
             }
 
-            // Validar coordenadas dentro de Venezuela.
+            // Coordenadas: se encolan tal cual. El worker es la autoridad sobre el
+            // bounding box de Venezuela (las sanea antes de persistir) y, si la
+            // ubicación queda fuera, le responde al ciudadano explicándolo. Anularlas
+            // aquí descartaría el mensaje en silencio (sin respuesta posible).
             double? lat = msg.Location?.Latitude;
             double? lng = msg.Location?.Longitude;
-            if (lat.HasValue && lng.HasValue && WebhookSupport.IsOutsideVenezuela(lat.Value, lng.Value))
-            {
-                app.Logger.LogWarning("Coordenadas de Telegram fuera de Venezuela; se descartan.");
-                lat = null;
-                lng = null;
-            }
 
             // Nada accionable (ej. sticker, contacto): ack y salir.
             if (string.IsNullOrEmpty(textBody) && !lat.HasValue)

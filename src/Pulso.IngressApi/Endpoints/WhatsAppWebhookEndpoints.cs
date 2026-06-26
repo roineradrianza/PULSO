@@ -96,14 +96,12 @@ public static class WhatsAppWebhookEndpoints
                             if (string.IsNullOrEmpty(textBody)) textBody = "[Imagen recibida]";
                         }
 
+                        // Coordenadas: se encolan tal cual. El worker es la autoridad sobre el
+                        // bounding box de Venezuela (las sanea antes de persistir) y, si la
+                        // ubicación queda fuera, le responde al ciudadano. Anularlas aquí
+                        // descartaría el mensaje en silencio (sin respuesta posible).
                         double? lat = m.Location?.Latitude;
                         double? lng = m.Location?.Longitude;
-                        if (lat.HasValue && lng.HasValue && WebhookSupport.IsOutsideVenezuela(lat.Value, lng.Value))
-                        {
-                            app.Logger.LogWarning("Coordenadas de WhatsApp fuera de Venezuela; se descartan.");
-                            lat = null;
-                            lng = null;
-                        }
 
                         if (string.IsNullOrEmpty(textBody) && !lat.HasValue) continue;
 
