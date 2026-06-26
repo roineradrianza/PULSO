@@ -388,9 +388,17 @@ public class Worker : BackgroundService
 
     private string GetPlatformUrl()
     {
-        return _env.IsProduction() 
-            ? "https://pulsoaid.org" 
-            : "https://stage.pulsoaid.org";
+        var envName = _env.EnvironmentName;
+        var aspnetEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+
+        bool isStagingOrDev = string.Equals(envName, "Staging", StringComparison.OrdinalIgnoreCase)
+                              || string.Equals(aspnetEnv, "Staging", StringComparison.OrdinalIgnoreCase)
+                              || string.Equals(envName, "Development", StringComparison.OrdinalIgnoreCase)
+                              || string.Equals(aspnetEnv, "Development", StringComparison.OrdinalIgnoreCase);
+
+        return isStagingOrDev 
+            ? "https://stage.pulsoaid.org" 
+            : "https://pulsoaid.org";
     }
 
     private string GetWelcomeMessage()
