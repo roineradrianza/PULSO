@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Pulso.AiWorker.Models;
 
@@ -11,6 +12,8 @@ namespace Pulso.AiWorker.Services;
 /// </summary>
 public sealed class GeminiTriageService : IGeminiTriageService
 {
+    private static readonly ActivitySource ActivitySource = new("Pulso.AiWorker");
+
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly ILogger<GeminiTriageService> _logger;
@@ -25,21 +28,28 @@ public sealed class GeminiTriageService : IGeminiTriageService
         _logger        = logger;
     }
 
-    /// <inheritdoc/>
     public async Task<TriageResult> TriageAsync(
         string text,
         MediaContent? media,
         CancellationToken cancellationToken)
     {
+        using var activity = ActivitySource.StartActivity("gemini-triage");
+        activity?.SetTag("pulso.triage.text_length", text.Length);
+        activity?.SetTag("pulso.triage.has_media", media is not null);
+
         var apiKey = _configuration["GeminiApiKey"];
         if (string.IsNullOrEmpty(apiKey) || apiKey.Contains("TU_API_KEY") || apiKey == "placeholder")
         {
             _logger.LogWarning("GeminiApiKey not configured. Using local triage simulator.");
+            activity?.SetTag("pulso.triage.provider", "simulator");
             return SimulateTriage(text);
         }
 
         var modelName  = _configuration["GeminiModelName"] ?? "gemini-2.0-flash";
         _logger.LogInformation("Using Gemini model: {model}", modelName);
+
+        activity?.SetTag("pulso.triage.provider", "gemini");
+        activity?.SetTag("gemini.model", modelName);
 
         // v1 para modelos 1.5 estables; v1beta para experimentales/preview
         var apiVersion = modelName.Contains("1.5") ? "v1" : "v1beta";
