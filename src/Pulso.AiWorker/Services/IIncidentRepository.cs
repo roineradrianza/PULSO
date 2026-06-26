@@ -18,6 +18,7 @@ public interface IIncidentRepository
         string rawText,
         double? latitude,
         double? longitude,
+        bool isApproximate,
         CancellationToken cancellationToken);
 
     /// <summary>

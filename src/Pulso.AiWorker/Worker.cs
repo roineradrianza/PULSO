@@ -28,6 +28,7 @@ public class Worker : BackgroundService
     private readonly IMediaDownloadService    _mediaDownload;
     private readonly IIncidentRepository      _incidentRepo;
     private readonly IOutboundMessageService  _outbound;
+    private readonly IGeocodingService        _geocoding;
 
     public Worker(
         ILogger<Worker>          logger,
@@ -35,7 +36,8 @@ public class Worker : BackgroundService
         IGeminiTriageService     geminiTriage,
         IMediaDownloadService    mediaDownload,
         IIncidentRepository      incidentRepo,
-        IOutboundMessageService  outbound)
+        IOutboundMessageService  outbound,
+        IGeocodingService        geocoding)
     {
         _logger        = logger;
         _redis         = redis;
@@ -43,6 +45,7 @@ public class Worker : BackgroundService
         _mediaDownload = mediaDownload;
         _incidentRepo  = incidentRepo;
         _outbound      = outbound;
+        _geocoding     = geocoding;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -103,27 +106,50 @@ public class Worker : BackgroundService
 
         // 3. Validar coordenadas dentro del bounding box de Venezuela
         var (latitude, longitude) = SanitizeCoordinates(payload.Latitude, payload.Longitude);
+        var isApproximate = false;
 
-        // 4. Fallback conversacional si no hay ubicación: pedir la ubicación por el canal de origen.
-        if (!latitude.HasValue && !longitude.HasValue && string.IsNullOrEmpty(triage.ExtractedAddress))
+        // 4. Plan B: sin GPS de hardware, geocodificar la dirección/sector inferidos por la IA
+        //    para obtener coordenadas APROXIMADAS (preferir la dirección sobre el sector).
+        if (!latitude.HasValue || !longitude.HasValue)
+        {
+            var geoQuery = !string.IsNullOrWhiteSpace(triage.ExtractedAddress)
+                ? triage.ExtractedAddress
+                : triage.Sector;
+
+            if (!string.IsNullOrWhiteSpace(geoQuery))
+            {
+                var geo = await _geocoding.GeocodeAsync(geoQuery!, cancellationToken);
+                if (geo is not null)
+                {
+                    latitude      = geo.Latitude;
+                    longitude     = geo.Longitude;
+                    isApproximate = true;
+                    _logger.LogInformation(
+                        "Approximate location resolved via geocoding ({provider}).", geo.Provider);
+                }
+            }
+        }
+
+        // 5. Fallback conversacional si AÚN no hay ubicación: pedirla por el canal de origen.
+        if (!latitude.HasValue && !longitude.HasValue)
         {
             _logger.LogWarning(
-                "Could not resolve location via GPS or text. Requesting location from citizen...");
+                "Could not resolve location via GPS, text or geocoding. Requesting location from citizen...");
             await _outbound.SendLocationRequestAsync(payload, cancellationToken);
         }
 
-        // 5. Persistir incidente
+        // 6. Persistir incidente (isApproximate => is_hardware_gps = false y sin deduplicación espacial)
         var incidentId = await _incidentRepo.SaveIncidentAsync(
-            payload, triage, rawText, latitude, longitude, cancellationToken);
+            payload, triage, rawText, latitude, longitude, isApproximate, cancellationToken);
 
-        // 6. Guardar transcripción si aplica
+        // 7. Guardar transcripción si aplica
         if (!string.IsNullOrEmpty(triage.Transcription) && incidentId.HasValue)
         {
             await _incidentRepo.SaveTranscriptionAsync(
                 incidentId.Value, triage.Transcription, cancellationToken);
         }
 
-        // 7. Notificar a los clientes conectados (SSE) vía Redis pub/sub. Solo una
+        // 8. Notificar a los clientes conectados (SSE) vía Redis pub/sub. Solo una
         //    señal con el id; el cliente pedirá el delta por el endpoint saneado.
         if (incidentId.HasValue)
         {

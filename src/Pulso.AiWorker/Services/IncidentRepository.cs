@@ -27,6 +27,7 @@ public sealed class IncidentRepository : IIncidentRepository
         string rawText,
         double? latitude,
         double? longitude,
+        bool isApproximate,
         CancellationToken cancellationToken)
     {
         _logger.LogInformation("Calling process_and_deduplicate_incident function in Postgres/PostGIS...");
@@ -37,7 +38,7 @@ public sealed class IncidentRepository : IIncidentRepository
         await using var cmd = new NpgsqlCommand(
             "SELECT public.process_and_deduplicate_incident(" +
             "@message_id, @phone, @channel, @raw_text, @category, @severity::severity_level, " +
-            "@tags, @latitude, @longitude, @location, @sector, @found_person_name, @found_person_document, @triage_provider)",
+            "@tags, @latitude, @longitude, @location, @sector, @found_person_name, @found_person_document, @triage_provider, @is_approximate)",
             conn);
 
         cmd.Parameters.AddWithValue("message_id",          payload.MessageId);
@@ -54,6 +55,7 @@ public sealed class IncidentRepository : IIncidentRepository
         cmd.Parameters.AddWithValue("found_person_name",   string.IsNullOrEmpty(triage.FoundPersonName)  ? DBNull.Value : triage.FoundPersonName);
         cmd.Parameters.AddWithValue("found_person_document", string.IsNullOrEmpty(triage.FoundPersonDocument) ? DBNull.Value : triage.FoundPersonDocument);
         cmd.Parameters.AddWithValue("triage_provider",     string.IsNullOrEmpty(triage.TriageProvider)   ? "gemini" : triage.TriageProvider);
+        cmd.Parameters.AddWithValue("is_approximate",      isApproximate);
 
         var result = await cmd.ExecuteScalarAsync(cancellationToken);
 
