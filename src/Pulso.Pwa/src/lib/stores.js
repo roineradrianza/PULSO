@@ -34,13 +34,24 @@ export const pendingCount = writable(0);
 export const mapFocus = writable(null);
 
 // --- Notificaciones (toast) ---
-export const toast = writable({ message: '', isError: false, show: false });
+// type: 'success' (verde) | 'error' (rojo) | 'info' (azul, avisos neutrales).
+export const toast = writable({ message: '', type: 'success', show: false });
 
 let toastTimer;
-export function showToast(message, isError = false) {
+function emitToast(message, type) {
   clearTimeout(toastTimer);
-  toast.set({ message, isError, show: true });
+  toast.set({ message, type, show: true });
   toastTimer = setTimeout(() => {
     toast.update((t) => ({ ...t, show: false }));
   }, 4000);
+}
+
+// Compatibilidad: showToast(msg) = éxito; showToast(msg, true) = error.
+export function showToast(message, isError = false) {
+  emitToast(message, isError ? 'error' : 'success');
+}
+
+// Aviso neutral (ni éxito ni error): p. ej. "Reconectando con el servidor…".
+export function showInfo(message) {
+  emitToast(message, 'info');
 }

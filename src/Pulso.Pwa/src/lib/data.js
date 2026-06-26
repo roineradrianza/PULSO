@@ -3,7 +3,7 @@
 // traen incidentes nuevos desde el watermark. Persiste un snapshot en IndexedDB
 // para ver el panorama sin conexión.
 import { fetchSituations, fetchSectorStats, fetchSummary, fetchSystemMetrics } from './api.js';
-import { situations, sectorStats, summary, systemMetrics, showToast } from './stores.js';
+import { situations, sectorStats, summary, systemMetrics, showInfo } from './stores.js';
 import { saveSnapshot, getSnapshot } from './db.js';
 
 let watermark = null;          // mayor created_at visto (ISO 8601)
@@ -19,7 +19,7 @@ let serverDegraded = false;
 function noteServerIssue() {
   if (!serverDegraded) {
     serverDegraded = true;
-    showToast('Reconectando con el servidor…');
+    showInfo('Reconectando con el servidor…');
   }
 }
 function noteServerOk() {
