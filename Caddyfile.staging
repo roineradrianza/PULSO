@@ -1,0 +1,21 @@
+stage.pulsoaid.org {
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    handle /api/* {
+        reverse_proxy localhost:5152
+    }
+
+    handle {
+        root * /var/www/pulso/dist
+        try_files {path} /index.html
+        file_server
+    }
+}

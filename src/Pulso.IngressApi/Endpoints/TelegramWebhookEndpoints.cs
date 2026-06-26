@@ -1,0 +1,93 @@
+using System.Security.Cryptography;
+using System.Text;
+using Pulso.IngressApi.Common;
+using Pulso.IngressApi.Models;
+using StackExchange.Redis;
+
+namespace Pulso.IngressApi.Endpoints;
+
+// Adaptador del webhook de Telegram (Bot API): normaliza un Update a PulsoPayload y lo encola.
+public static class TelegramWebhookEndpoints
+{
+    public static void MapTelegramWebhook(this WebApplication app)
+    {
+        app.MapPost("/api/v1/webhooks/telegram", async (TelegramUpdate update, HttpRequest request, IConnectionMultiplexer redisConn, IConfiguration config) =>
+        {
+            // 1. Autenticar con el secret token de setWebhook (header X-Telegram-Bot-Api-Secret-Token).
+            var expectedSecret = config["Telegram:SecretToken"];
+            if (!string.IsNullOrEmpty(expectedSecret))
+            {
+                var provided = Encoding.UTF8.GetBytes(request.Headers["X-Telegram-Bot-Api-Secret-Token"].ToString());
+                var expected = Encoding.UTF8.GetBytes(expectedSecret);
+                if (provided.Length != expected.Length || !CryptographicOperations.FixedTimeEquals(provided, expected))
+                {
+                    return Results.StatusCode(StatusCodes.Status403Forbidden);
+                }
+            }
+            else
+            {
+                app.Logger.LogWarning("Telegram:SecretToken no configurado: el webhook acepta solicitudes sin autenticar.");
+            }
+
+            var msg = update.Message;
+            if (msg is null)
+            {
+                // Update sin mensaje (edición, callback, etc.): ack para evitar reintentos.
+                return Results.Ok();
+            }
+
+            // 2. Normalizar a PulsoPayload.
+            string textBody = msg.Text ?? msg.Caption ?? string.Empty;
+            string? mediaType = null;
+            string? mediaFileId = null;
+
+            if (msg.Voice is not null)
+            {
+                // La descarga autenticada (getFile + token) queda para la tarea de media.
+                mediaType = "audio";
+                mediaFileId = msg.Voice.FileId;
+                if (string.IsNullOrEmpty(textBody)) textBody = "[Nota de voz recibida - pendiente de transcripción]";
+            }
+            else if (msg.Photo is { Length: > 0 })
+            {
+                // Telegram entrega varias resoluciones; tomar la de mayor tamaño.
+                var largest = msg.Photo.OrderByDescending(p => p.FileSize ?? 0).First();
+                mediaType = "image";
+                mediaFileId = largest.FileId;
+                if (string.IsNullOrEmpty(textBody)) textBody = "[Imagen recibida]";
+            }
+
+            // Validar coordenadas dentro de Venezuela.
+            double? lat = msg.Location?.Latitude;
+            double? lng = msg.Location?.Longitude;
+            if (lat.HasValue && lng.HasValue && WebhookSupport.IsOutsideVenezuela(lat.Value, lng.Value))
+            {
+                app.Logger.LogWarning("Coordenadas de Telegram fuera de Venezuela; se descartan.");
+                lat = null;
+                lng = null;
+            }
+
+            // Nada accionable (ej. sticker, contacto): ack y salir.
+            if (string.IsNullOrEmpty(textBody) && !lat.HasValue)
+            {
+                return Results.Ok();
+            }
+
+            var payload = new PulsoPayload(
+                MessageId: $"tg-{msg.Chat.Id}-{msg.MessageId}",   // clave de idempotencia única y estable
+                Phone: msg.Chat.Id.ToString(),                    // Telegram no provee teléfono; usar chat id como contacto
+                Channel: "telegram",
+                TextBody: textBody,
+                MediaUrl: null,                                   // sin URL: la descarga autenticada es tarea de media
+                MediaType: mediaType,
+                MediaFileId: mediaFileId,
+                Latitude: lat,
+                Longitude: lng
+            );
+
+            await WebhookSupport.EnqueueAsync(redisConn.GetDatabase(), payload);
+
+            return Results.Ok();
+        });
+    }
+}

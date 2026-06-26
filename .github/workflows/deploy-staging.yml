@@ -1,0 +1,118 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - stage
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # -------------------------------------------------------------
+      # 1. CONSTRUCCIÓN DE BACKENDS (.NET 10)
+      # -------------------------------------------------------------
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore Dependencies
+        run: dotnet restore src/Pulso.sln
+
+      - name: Publish API
+        run: |
+          dotnet publish src/Pulso.IngressApi/Pulso.IngressApi.csproj \
+            -c Release \
+            -o ./publish-api \
+            --no-restore
+
+      - name: Publish AI Worker
+        run: |
+          dotnet publish src/Pulso.AiWorker/Pulso.AiWorker.csproj \
+            -c Release \
+            -o ./publish-worker \
+            --no-restore
+
+      # -------------------------------------------------------------
+      # 2. CONSTRUCCIÓN DEL FRONTEND (Node.js & Vite/Svelte)
+      # -------------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: src/Pulso.Pwa/package-lock.json
+
+      - name: Install PWA Dependencies
+        working-directory: src/Pulso.Pwa
+        run: npm ci
+
+      - name: Build PWA
+        working-directory: src/Pulso.Pwa
+        run: npm run build
+
+      # -------------------------------------------------------------
+      # 3. EMPAQUETAR ARTEFACTOS
+      # -------------------------------------------------------------
+      - name: Package Artifacts
+        run: |
+          tar -czf publish-api.tar.gz -C ./publish-api .
+          tar -czf publish-worker.tar.gz -C ./publish-worker .
+          tar -czf pwa-dist.tar.gz -C src/Pulso.Pwa/dist .
+
+      # -------------------------------------------------------------
+      # 4. TRANSFERENCIA Y DESPLIEGUE EN EL SERVIDOR VPS
+      # -------------------------------------------------------------
+      - name: Deploy to Staging VPS via SSH/SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.STAGING_HOST }}         # 158.101.97.85
+          username: ${{ secrets.STAGING_USER }}     # ubuntu
+          key: ${{ secrets.STAGING_SSH_KEY }}       # Contenido de stage-ssh-key-2026-06-25.key
+          source: "publish-api.tar.gz,publish-worker.tar.gz,pwa-dist.tar.gz"
+          target: "/tmp"
+
+      - name: Execute Remote Deploy Commands
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            # Crear directorios si no existen
+            sudo mkdir -p /opt/pulso/api
+            sudo mkdir -p /opt/pulso/worker
+            sudo mkdir -p /var/www/pulso/dist
+
+            # Detener servicios temporalmente
+            sudo systemctl stop pulso-api pulso-worker
+
+            # Desplegar API
+            sudo rm -rf /opt/pulso/api/*
+            sudo tar -xzf /tmp/publish-api.tar.gz -C /opt/pulso/api/
+            
+            # Desplegar Worker
+            sudo rm -rf /opt/pulso/worker/*
+            sudo tar -xzf /tmp/publish-worker.tar.gz -C /opt/pulso/worker/
+            
+            # Desplegar PWA
+            sudo rm -rf /var/www/pulso/dist/*
+            sudo tar -xzf /tmp/pwa-dist.tar.gz -C /var/www/pulso/dist/
+
+            # Limpiar temporales
+            rm -f /tmp/publish-api.tar.gz /tmp/publish-worker.tar.gz /tmp/pwa-dist.tar.gz
+
+            # Asegurar permisos correctos
+            sudo chown -R ubuntu:ubuntu /opt/pulso
+            sudo chown -R www-data:www-data /var/www/pulso/dist
+
+            # Iniciar servicios
+            sudo systemctl start pulso-api pulso-worker
+            
+            # Verificar estatus de servicios
+            sudo systemctl is-active pulso-api pulso-worker

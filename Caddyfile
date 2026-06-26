@@ -1,0 +1,66 @@
+# Caddyfile — Reverse proxy de PULSO
+# Sirve la PWA y la API bajo el MISMO ORIGEN (HTTPS y HTTP/3 automáticos).
+#
+# Beneficios:
+#   - Un solo dominio para PWA + API  ->  sin CORS.
+#   - HTTPS + renovación automática (Let's Encrypt).
+#   - HTTP/2 y HTTP/3 (QUIC): mejor en redes móviles con pérdida de paquetes.
+#   - Oculta el backend (puerto/host del Pulso.IngressApi no se expone).
+#
+# Requisitos:
+#   - Pulso.IngressApi escuchando en localhost:5152
+#   - Build de la PWA (Vite) disponible en disco (ej. src/Pulso.Pwa/dist)
+#
+# Uso (producción):
+#   caddy run --config ./Caddyfile
+
+pulsoaid.org {
+    # Compresión para redes lentas
+    encode zstd gzip
+
+    # Cabeceras de seguridad básicas
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # No revelar el servidor de origen
+        -Server
+    }
+
+    # API -> Pulso.IngressApi (mismo origen, sin CORS)
+    handle /api/* {
+        reverse_proxy localhost:5152
+    }
+
+    # PWA estática (salida del build de Vite). Ajusta la ruta a tu despliegue.
+    handle {
+        root * /var/www/pulso/dist
+        try_files {path} /index.html
+        file_server
+    }
+}
+
+# ----------------------------------------------------------------------------
+# Opcional: redirigir www -> dominio apex. Descomenta SOLO si creas el registro
+# DNS para www.pulsoaid.org (de lo contrario Caddy fallará al emitir su certificado).
+#
+# www.pulsoaid.org {
+#     redir https://pulsoaid.org{uri} permanent
+# }
+
+# ----------------------------------------------------------------------------
+# Variante para pruebas locales con HTTPS interno (certificado autofirmado).
+# Descomenta para probar el mismo-origen en tu máquina sirviendo ./src/Pulso.Pwa/dist.
+#
+# localhost {
+#     encode zstd gzip
+#     handle /api/* {
+#         reverse_proxy localhost:5152
+#     }
+#     handle {
+#         root * ./src/Pulso.Pwa/dist
+#         try_files {path} /index.html
+#         file_server
+#     }
+# }

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-Pulso.AiWorker-667b0db1-05dc-4e67-b1e6-d64547fa48e3</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+    <!-- ImageSharp 3.1.x: última línea con licencia libre (Six Labors Split License).
+         4.x exige licencia comercial. 3.1.12 incluye los parches de seguridad. -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageReference Include="StackExchange.Redis" Version="3.0.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="system_prompt.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>
