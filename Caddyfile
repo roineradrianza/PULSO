@@ -15,8 +15,10 @@
 #   caddy run --config ./Caddyfile
 
 pulsoaid.org {
-    # Compresión para redes lentas
-    encode zstd gzip
+    # Comprimir todo MENOS el stream SSE: gzip/zstd bufferiza el text/event-stream
+    # y rompe el push en tiempo real (/api/v1/pulso/stream).
+    @compressible not path /api/v1/pulso/stream
+    encode @compressible zstd gzip
 
     # Cabeceras de seguridad básicas
     header {
