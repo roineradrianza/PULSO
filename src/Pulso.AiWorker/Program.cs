@@ -1,3 +1,4 @@
+using Npgsql;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -59,7 +60,10 @@ builder.Logging.AddOpenTelemetry(logging =>
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(otelServiceName))
     .WithTracing(tracing => tracing
-        .AddHttpClientInstrumentation())
+        .AddSource(Worker.ActivitySourceName)   // spans de negocio del worker
+        .AddHttpClientInstrumentation()
+        .AddRedisInstrumentation()
+        .AddNpgsql())
     .WithMetrics(metrics => metrics
         .AddHttpClientInstrumentation()
         .AddRuntimeInstrumentation());

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Pulso.IngressApi.Models;
 using Pulso.IngressApi.Serialization;
@@ -17,9 +18,14 @@ public static class WebhookSupport
         => lat < 0.0 || lat > 16.0 || lng < -74.0 || lng > -59.0;
 
     // Serializa el payload con el contexto source-gen y lo encola.
+    // Inyecta el contexto de traza actual (W3C traceparent del request del webhook)
+    // para que el worker, al otro lado de la cola, enlace su procesamiento con la
+    // traza que originó el mensaje.
     public static Task EnqueueAsync(IDatabase db, PulsoPayload payload)
     {
-        var json = JsonSerializer.Serialize(payload, PulsoJsonSerializerContext.Default.PulsoPayload);
+        var traceParent = Activity.Current?.Id;
+        var toQueue = traceParent is null ? payload : payload with { TraceParent = traceParent };
+        var json = JsonSerializer.Serialize(toQueue, PulsoJsonSerializerContext.Default.PulsoPayload);
         return db.ListLeftPushAsync(QueueKey, json);
     }
 

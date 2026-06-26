@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Pulso.AiWorker.Infrastructure;
 using Pulso.AiWorker.Models;
@@ -14,6 +15,10 @@ namespace Pulso.AiWorker;
 /// </summary>
 public class Worker : BackgroundService
 {
+    // Fuente de spans de negocio del worker (un span por reporte procesado).
+    public const string ActivitySourceName = "Pulso.AiWorker";
+    private static readonly ActivitySource ActivitySource = new(ActivitySourceName);
+
     // Límite geográfico de Venezuela (bounding box).
     // Coordenadas fuera de este rectángulo se descartan para evitar el
     // envenenamiento del mapa con ubicaciones falsas de otros países.
@@ -91,6 +96,22 @@ public class Worker : BackgroundService
             _logger.LogWarning("Null or invalid payload received. Skipping.");
             return;
         }
+
+        // Span de negocio que agrupa todo el procesamiento del reporte y lo ENLAZA con
+        // la traza del webhook que lo originó (el contexto viaja en payload.TraceParent
+        // a través de la cola Redis). Los spans hijos (Gemini, Nominatim, Redis, Npgsql)
+        // se anidan bajo este.
+        ActivityContext parentContext = default;
+        if (!string.IsNullOrEmpty(payload.TraceParent) &&
+            ActivityContext.TryParse(payload.TraceParent, null, out var parsed))
+        {
+            parentContext = parsed;
+        }
+
+        using var activity = ActivitySource.StartActivity(
+            "process-incident", ActivityKind.Consumer, parentContext);
+        activity?.SetTag("pulso.channel", payload.Channel);
+        activity?.SetTag("messaging.system", "redis");
 
         // 1. Resolver y descargar media (audio o imagen; el video se descarta por política)
         var media = await _mediaDownload.ResolveMediaAsync(payload, cancellationToken);

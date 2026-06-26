@@ -1,6 +1,7 @@
 using System.Net;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
+using Npgsql;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -91,7 +92,9 @@ builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(otelServiceName))
     .WithTracing(tracing => tracing
         .AddAspNetCoreInstrumentation()
-        .AddHttpClientInstrumentation())
+        .AddHttpClientInstrumentation()
+        .AddRedisInstrumentation()
+        .AddNpgsql())
     .WithMetrics(metrics => metrics
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()

@@ -11,5 +11,8 @@ public record PulsoPayload(
     [property: JsonPropertyName("media_type")] string? MediaType,
     [property: JsonPropertyName("media_file_id")] string? MediaFileId,
     [property: JsonPropertyName("latitude")] double? Latitude,
-    [property: JsonPropertyName("longitude")] double? Longitude
+    [property: JsonPropertyName("longitude")] double? Longitude,
+    // Contexto de traza (W3C traceparent) inyectado por el productor para enlazar
+    // la traza del webhook con el procesamiento del worker a través de la cola.
+    [property: JsonPropertyName("traceparent")] string? TraceParent = null
 );
