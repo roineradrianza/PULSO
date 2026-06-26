@@ -13,6 +13,9 @@ public record TriageResult(
     [property: JsonPropertyName("is_person_found")] bool? IsPersonFound,
     [property: JsonPropertyName("found_person_name")] string? FoundPersonName,
     [property: JsonPropertyName("found_person_document")] string? FoundPersonDocument,
+    // Nombre de la persona EN PELIGRO (atrapada, desaparecida, herida o buscada). Es
+    // independiente de found_person_name, que es para la persona reportada a SALVO.
+    [property: JsonPropertyName("affected_person_name")] string? AffectedPersonName = null,
     // Resumen objetivo de lo reportado o de lo observado en la imagen/audio. Se usa
     // como texto del incidente cuando el ciudadano no escribió nada (solo media).
     [property: JsonPropertyName("description")] string? Description = null,

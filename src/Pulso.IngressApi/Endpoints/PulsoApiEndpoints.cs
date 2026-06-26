@@ -74,7 +74,8 @@ public static class PulsoApiEndpoints
                         COALESCE(is_hardware_gps, false) as is_hardware_gps,
                         (COALESCE(triage_provider, 'gemini') <> 'gemini') as needs_review,
                         COALESCE(found_person_verified, false) as found_person_verified,
-                        created_at
+                        created_at,
+                        affected_person_name
                     FROM public.incidents
                     WHERE status != 'DUPLICATE'
                       AND created_at >= @utcStart AND created_at <= @utcEnd"
@@ -103,10 +104,11 @@ public static class PulsoApiEndpoints
                     var needsReview = !reader.IsDBNull(8) && reader.GetBoolean(8);
                     var foundPersonVerified = !reader.IsDBNull(9) && reader.GetBoolean(9);
                     var createdAt = reader.GetDateTime(10);
+                    var affectedPersonName = reader.IsDBNull(11) ? null : reader.GetString(11);
 
                     list.Add(new SituationItem(
                         id, category, severity, sector, lat, lng,
-                        !string.IsNullOrEmpty(personName), personName,
+                        !string.IsNullOrEmpty(personName), personName, affectedPersonName,
                         isHardwareGps, needsReview, foundPersonVerified, createdAt));
                 }
             }
@@ -207,6 +209,7 @@ public static class PulsoApiEndpoints
                             ELSE 'LOW'
                         END as sector_status,
                         string_agg(found_person_name, ',') filter (where found_person_name is not null) as people_names,
+                        string_agg(affected_person_name, ',') filter (where affected_person_name is not null) as searched_names,
                         AVG(ST_Y(coordinates::geometry)) as latitude,
                         AVG(ST_X(coordinates::geometry)) as longitude
                     FROM public.incidents
@@ -225,14 +228,19 @@ public static class PulsoApiEndpoints
                     var count = (int)reader.GetInt64(1);
                     var status = reader.GetString(2);
                     var namesRaw = reader.IsDBNull(3) ? "" : reader.GetString(3);
-                    double? lat = reader.IsDBNull(4) ? null : reader.GetDouble(4);
-                    double? lng = reader.IsDBNull(5) ? null : reader.GetDouble(5);
+                    var searchedRaw = reader.IsDBNull(4) ? "" : reader.GetString(4);
+                    double? lat = reader.IsDBNull(5) ? null : reader.GetDouble(5);
+                    double? lng = reader.IsDBNull(6) ? null : reader.GetDouble(6);
 
                     var peopleList = string.IsNullOrEmpty(namesRaw)
                         ? new List<string>()
                         : namesRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
 
-                    list.Add(new LocationStat(sector, status, count, peopleList, lat, lng));
+                    var searchedList = string.IsNullOrEmpty(searchedRaw)
+                        ? new List<string>()
+                        : searchedRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
+
+                    list.Add(new LocationStat(sector, status, count, peopleList, searchedList, lat, lng));
                 }
             }
             catch (Exception ex)

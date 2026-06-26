@@ -29,6 +29,8 @@ public record SituationItem(
     [property: JsonPropertyName("longitude")] double? Longitude,
     [property: JsonPropertyName("is_person_found")] bool IsPersonFound,
     [property: JsonPropertyName("found_person_name")] string? FoundPersonName,
+    // Nombre de la persona en peligro (buscada/atrapada/herida), si el reporte lo menciona.
+    [property: JsonPropertyName("affected_person_name")] string? AffectedPersonName,
     // Precisión de la ubicación: true = coordenadas GPS de hardware (punto exacto);
     // false = ubicación aproximada (derivada de texto, sin pin en el mapa por ahora).
     [property: JsonPropertyName("is_hardware_gps")] bool IsHardwareGps,
@@ -57,6 +59,8 @@ public record LocationStat(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("incident_count")] int IncidentCount,
     [property: JsonPropertyName("people_found")] List<string> PeopleFound,
+    // Nombres de personas en peligro (buscadas/atrapadas) reportadas en el sector.
+    [property: JsonPropertyName("people_searched")] List<string> PeopleSearched,
     // Centroide aproximado del sector para centrar el mapa sin depender de la lista de incidentes.
     [property: JsonPropertyName("latitude")] double? Latitude,
     [property: JsonPropertyName("longitude")] double? Longitude

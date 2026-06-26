@@ -16,7 +16,8 @@
     const label = getSectorLabel(stat.sector).toLowerCase();
     const queryLower = query.toLowerCase().trim();
     return label.includes(queryLower) ||
-      stat.people_found.some((p) => p.toLowerCase().includes(queryLower));
+      stat.people_found.some((p) => p.toLowerCase().includes(queryLower)) ||
+      (stat.people_searched ?? []).some((p) => p.toLowerCase().includes(queryLower));
   });
 
   function focusSector(stat) {
@@ -110,6 +111,16 @@
                 </div>
               </div>
             {/if}
+            {#if (stat.people_searched ?? []).length > 0}
+              <div class="sector-people-container">
+                <span class="people-label">Personas buscadas ({stat.people_searched.length}):</span>
+                <div class="people-badges">
+                  {#each stat.people_searched as person}
+                    <span class="person-badge searched" title={person}>{person}</span>
+                  {/each}
+                </div>
+              </div>
+            {/if}
           </div>
           <div class="sector-meta">
             <span class="sector-count">{stat.incident_count} reportes</span>
@@ -125,5 +136,11 @@
   .custom-datepicker::-webkit-calendar-picker-indicator {
     filter: invert(1);
     cursor: pointer;
+  }
+  /* Persona en peligro (buscada/atrapada): se distingue del "a salvo" con tono ámbar. */
+  .person-badge.searched {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--accent-orange);
+    border: 1px solid rgba(245, 158, 11, 0.35);
   }
 </style>

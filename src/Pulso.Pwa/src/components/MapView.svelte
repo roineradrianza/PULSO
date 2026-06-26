@@ -30,7 +30,7 @@
 
   // Firma de lo que afecta el render del marcador (para detectar cambios).
   function signature(sit) {
-    return `${sit.latitude},${sit.longitude},${sit.severity},${sit.is_person_found},${sit.found_person_verified},${sit.is_hardware_gps},${sit.needs_review}`;
+    return `${sit.latitude},${sit.longitude},${sit.severity},${sit.is_person_found},${sit.found_person_verified},${sit.is_hardware_gps},${sit.needs_review},${sit.affected_person_name ?? ''}`;
   }
 
   // Chip de precisión de ubicación, en lenguaje simple para cualquier persona.
@@ -124,6 +124,12 @@
       const name = document.createElement('div');
       name.textContent = `Nombre: ${sit.found_person_name}`;
       meta.append(name);
+    }
+    if (sit.affected_person_name) {
+      const searched = document.createElement('div');
+      searched.style.cssText = 'color: var(--accent-orange); font-weight: 600;';
+      searched.textContent = `Persona buscada: ${sit.affected_person_name}`;
+      meta.append(searched);
     }
 
     wrap.append(title);
