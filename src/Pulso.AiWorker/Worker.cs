@@ -27,6 +27,9 @@ public class Worker : BackgroundService
     private const string OrphanLocationMessage =
         "Recibimos tu ubicación, pero no encontramos un reporte reciente para asociarla. " +
         "Por favor envía primero la descripción del incidente.";
+    private const string MediaFailedMessage =
+        "No pudimos procesar el archivo que enviaste. Por favor reenvíalo o descríbenos por " +
+        "texto qué está ocurriendo.";
 
     // Límite geográfico de Venezuela (bounding box).
     // Coordenadas fuera de este rectángulo se descartan para evitar el
@@ -151,20 +154,35 @@ public class Worker : BackgroundService
             return;
         }
 
-        // Acuse inmediato: el ciudadano sabe que su reporte llegó y se está procesando.
-        await _outbound.SendTextAsync(payload, AckReceivedMessage, cancellationToken);
-
         // 1. Resolver y descargar media (audio o imagen; el video se descarta por política)
         var media = await _mediaDownload.ResolveMediaAsync(payload, cancellationToken);
+
+        // 1b. Guardia: si el reporte se basa en media, esta no se pudo procesar, y no hay
+        //     texto real del ciudadano, NO creamos un incidente sin señal: le pedimos que
+        //     reenvíe o describa. Así evitamos clasificar un placeholder vacío.
+        if (!string.IsNullOrEmpty(payload.MediaType) && media is null && !HasRealText(payload.TextBody))
+        {
+            _logger.LogWarning("Media-based report could not be processed; asking the user to resend.");
+            await _outbound.SendTextAsync(payload, MediaFailedMessage, cancellationToken);
+            return;
+        }
+
+        // Acuse: el ciudadano sabe que su reporte llegó y se está procesando.
+        await _outbound.SendTextAsync(payload, AckReceivedMessage, cancellationToken);
 
         // 2. Triaje con IA
         _logger.LogInformation("Sending report to AI model for categorization and structured triage...");
         var triage = await _geminiTriage.TriageAsync(payload.TextBody, media, cancellationToken);
 
-        // Sustituir el texto con la transcripción si el modelo la produjo
-        var rawText = !string.IsNullOrEmpty(triage.Transcription)
-            ? $"[Transcripción de audio]: {triage.Transcription}"
-            : payload.TextBody;
+        // Texto a almacenar: la transcripción (audio); la descripción de la IA cuando el
+        // ciudadano no escribió nada (solo media, p. ej. imagen sin caption); o su texto.
+        string rawText;
+        if (!string.IsNullOrEmpty(triage.Transcription))
+            rawText = $"[Transcripción de audio]: {triage.Transcription}";
+        else if (!HasRealText(payload.TextBody) && !string.IsNullOrWhiteSpace(triage.Description))
+            rawText = triage.Description!;
+        else
+            rawText = payload.TextBody;
 
         // 3. Validar coordenadas dentro del bounding box de Venezuela
         var (latitude, longitude) = SanitizeCoordinates(payload.Latitude, payload.Longitude);
@@ -240,6 +258,18 @@ public class Worker : BackgroundService
         => payload.Latitude.HasValue
            && payload.Longitude.HasValue
            && string.IsNullOrWhiteSpace(payload.TextBody);
+
+    /// <summary>
+    /// True si el texto es contenido real del ciudadano (no un placeholder inyectado
+    /// por los webhooks cuando llega media sin caption, p. ej. "[Imagen recibida]").
+    /// </summary>
+    private static bool HasRealText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var t = text.TrimStart();
+        return !t.StartsWith("[Imagen", StringComparison.OrdinalIgnoreCase)
+            && !t.StartsWith("[Nota de voz", StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>
     /// Publica en Redis pub/sub la señal de incidente (creado o actualizado) para que

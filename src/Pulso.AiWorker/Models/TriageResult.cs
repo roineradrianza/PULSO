@@ -13,5 +13,8 @@ public record TriageResult(
     [property: JsonPropertyName("is_person_found")] bool? IsPersonFound,
     [property: JsonPropertyName("found_person_name")] string? FoundPersonName,
     [property: JsonPropertyName("found_person_document")] string? FoundPersonDocument,
+    // Resumen objetivo de lo reportado o de lo observado en la imagen/audio. Se usa
+    // como texto del incidente cuando el ciudadano no escribió nada (solo media).
+    [property: JsonPropertyName("description")] string? Description = null,
     [property: JsonPropertyName("triage_provider")] string TriageProvider = "gemini"
 );
