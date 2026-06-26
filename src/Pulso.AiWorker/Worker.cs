@@ -20,6 +20,17 @@ public class Worker : BackgroundService
     public const string ActivitySourceName = "Pulso.AiWorker";
     private static readonly ActivitySource ActivitySource = new(ActivitySourceName);
 
+    // Cola Redis (lista) y canal de "wake-up". La lista es la fuente de verdad de la
+    // entrega; el canal pub/sub solo avisa para despertar al worker al instante en vez
+    // de sondear cada segundo. Si un aviso se pierde, el poll de respaldo drena la cola
+    // igual (no hay pérdida de mensajes). Deben coincidir con WebhookSupport.
+    private const string QueueKey    = "pulso:emergency:messages";
+    private const string WakeChannel = "pulso:queue:wake";
+    private static readonly TimeSpan FallbackPollInterval = TimeSpan.FromSeconds(10);
+
+    // Señal de wake coalescida: varios avisos mientras se procesa colapsan en uno solo.
+    private readonly SemaphoreSlim _wakeSignal = new(0, 1);
+
     // Mensajes de confirmación hacia el ciudadano (best-effort, por el canal de origen).
     private const string AckReceivedMessage =
         "✅ Recibimos tu reporte. Lo estamos procesando…";
@@ -85,33 +96,72 @@ public class Worker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("PULSO AI Worker started. Listening to queue...");
+        _logger.LogInformation("PULSO AI Worker started. Subscribing to queue wake-ups...");
 
-        var db       = _redis.GetDatabase();
-        var queueKey = "pulso:emergency:messages";
+        var db = _redis.GetDatabase();
+
+        // Suscribirse al aviso de "hay trabajo": despierta al instante en vez de sondear.
+        // La cola (lista) sigue siendo la fuente de verdad; esto es solo una optimización.
+        var subscriber = _redis.GetSubscriber();
+        await subscriber.SubscribeAsync(RedisChannel.Literal(WakeChannel), (_, _) =>
+        {
+            // Coalescer: si ya hay una señal pendiente, este aviso extra se ignora.
+            // No importa: al despertar drenamos TODA la cola, no un solo mensaje.
+            try { _wakeSignal.Release(); } catch (SemaphoreFullException) { }
+        });
+
+        // Drenar lo que haya quedado encolado antes de empezar a esperar señales.
+        await DrainQueueAsync(db, stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            // Esperar un aviso de wake o, como respaldo, un timeout largo (cubre avisos
+            // perdidos y reinicios). En ambos casos, al despertar drenamos la cola.
             try
             {
-                var rawPayload = await db.ListRightPopAsync(queueKey);
-                if (rawPayload.IsNullOrEmpty)
-                {
-                    // Cola vacía — esperar antes de reintentar para no saturar CPU
-                    await Task.Delay(1000, stoppingToken);
-                    continue;
-                }
+                await _wakeSignal.WaitAsync(FallbackPollInterval, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
 
-                _logger.LogInformation(
-                    "Message received for processing: {payload}",
-                    PiiMasking.MaskPayloadJson(rawPayload.ToString()));
+            await DrainQueueAsync(db, stoppingToken);
+        }
+    }
 
+    // Procesa la cola FIFO hasta vaciarla, luego vuelve a esperar. Un fallo en un mensaje
+    // se registra pero no detiene el drenado del resto.
+    private async Task DrainQueueAsync(IDatabase db, CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            RedisValue rawPayload;
+            try
+            {
+                rawPayload = await db.ListRightPopAsync(QueueKey);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error reading from the queue.");
+                await Task.Delay(5000, stoppingToken);
+                return;
+            }
+
+            if (rawPayload.IsNullOrEmpty)
+                return; // Cola vacía: volver a esperar el próximo aviso.
+
+            _logger.LogInformation(
+                "Message received for processing: {payload}",
+                PiiMasking.MaskPayloadJson(rawPayload.ToString()));
+
+            try
+            {
                 await ProcessMessageAsync(rawPayload.ToString(), stoppingToken);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Critical error processing message from the queue.");
-                await Task.Delay(5000, stoppingToken);
             }
         }
     }

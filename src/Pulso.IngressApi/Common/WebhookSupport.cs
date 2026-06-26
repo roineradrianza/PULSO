@@ -12,6 +12,11 @@ public static class WebhookSupport
     // Cola FIFO de emergencias en Upstash Redis (consumida por el AiWorker).
     public const string QueueKey = "pulso:emergency:messages";
 
+    // Canal pub/sub de "hay trabajo": avisa al worker para que despierte al instante
+    // en vez de sondear la cola. Es solo un aviso (best-effort); la cola sigue siendo
+    // la fuente de verdad de la entrega.
+    public const string WakeChannel = "pulso:queue:wake";
+
     // Caja delimitadora aproximada del territorio de Venezuela.
     // Se usa para descartar coordenadas falsas/maliciosas fuera del país.
     public static bool IsOutsideVenezuela(double lat, double lng)
@@ -21,12 +26,24 @@ public static class WebhookSupport
     // Inyecta el contexto de traza actual (W3C traceparent del request del webhook)
     // para que el worker, al otro lado de la cola, enlace su procesamiento con la
     // traza que originó el mensaje.
-    public static Task EnqueueAsync(IDatabase db, PulsoPayload payload)
+    public static async Task EnqueueAsync(IDatabase db, PulsoPayload payload)
     {
         var traceParent = Activity.Current?.Id;
         var toQueue = traceParent is null ? payload : payload with { TraceParent = traceParent };
         var json = JsonSerializer.Serialize(toQueue, PulsoJsonSerializerContext.Default.PulsoPayload);
-        return db.ListLeftPushAsync(QueueKey, json);
+        await db.ListLeftPushAsync(QueueKey, json);
+
+        // Aviso "hay trabajo" para que el worker despierte al instante. Best-effort: si
+        // se pierde, el poll de respaldo del worker drena la cola igual, así que un fallo
+        // aquí NO debe afectar al webhook (la entrega ya está garantizada por el LPUSH).
+        try
+        {
+            await db.PublishAsync(RedisChannel.Literal(WakeChannel), RedisValue.EmptyString);
+        }
+        catch
+        {
+            // No crítico para la entrega: el worker drenará la cola en su próximo ciclo.
+        }
     }
 
     // --- Límite por remitente (capa B) ---
