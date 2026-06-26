@@ -3,10 +3,21 @@
 
   let query = '';
 
-  $: filtered = $sectorStats.filter((stat) =>
-    stat.sector.toLowerCase().includes(query.toLowerCase().trim()) ||
-    stat.people_found.some((p) => p.toLowerCase().includes(query.toLowerCase().trim()))
-  );
+  const laGuairaSectors = ['Maiquetía', 'La Guaira', 'Macuto', 'Caraballeda', 'Naiguatá', 'Catia La Mar'];
+
+  function getSectorLabel(sector) {
+    if (laGuairaSectors.includes(sector)) {
+      return `La Guaira, ${sector}`;
+    }
+    return `Caracas, ${sector}`;
+  }
+
+  $: filtered = $sectorStats.filter((stat) => {
+    const label = getSectorLabel(stat.sector).toLowerCase();
+    const queryLower = query.toLowerCase().trim();
+    return label.includes(queryLower) ||
+      stat.people_found.some((p) => p.toLowerCase().includes(queryLower));
+  });
 
   function focusSector(stat) {
     const points = $situations.filter(
@@ -50,7 +61,7 @@
           <div>
             <div class="sector-name">
               <span class="status-dot {stat.status.toLowerCase()}"></span>
-              {stat.sector}
+              {getSectorLabel(stat.sector)}
             </div>
             {#if stat.people_found.length > 0}
               <div class="sector-people-container">
