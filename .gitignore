@@ -63,4 +63,5 @@ publish-worker/
 *.key
 pulso-api.service
 pulso-worker.service
+*.pem
 
