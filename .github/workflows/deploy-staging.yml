@@ -81,7 +81,7 @@ jobs:
           host: ${{ secrets.STAGING_HOST }}         # 158.101.97.85
           username: ${{ secrets.STAGING_USER }}     # ubuntu
           key: ${{ secrets.STAGING_SSH_KEY }}       # Contenido de stage-ssh-key-2026-06-25.key
-          source: "publish-api.tar.gz,publish-worker.tar.gz,pwa-dist.tar.gz"
+          source: "publish-api.tar.gz,publish-worker.tar.gz,pwa-dist.tar.gz,Caddyfile.staging"
           target: "/tmp"
 
       - name: Execute Remote Deploy Commands
@@ -110,6 +110,13 @@ jobs:
             # Desplegar PWA
             sudo rm -rf /var/www/pulso/dist/*
             sudo tar -xzf /tmp/pwa-dist.tar.gz -C /var/www/pulso/dist/
+
+            # Actualizar Caddyfile y recargar caddy si se transfirió uno nuevo
+            if [ -f /tmp/Caddyfile.staging ]; then
+              sudo cp /tmp/Caddyfile.staging /etc/caddy/Caddyfile
+              sudo systemctl reload caddy
+              rm -f /tmp/Caddyfile.staging
+            fi
 
             # Limpiar temporales
             rm -f /tmp/publish-api.tar.gz /tmp/publish-worker.tar.gz /tmp/pwa-dist.tar.gz

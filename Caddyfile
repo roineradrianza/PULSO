@@ -36,6 +36,25 @@ pulsoaid.org {
     # PWA estática (salida del build de Vite). Ajusta la ruta a tu despliegue.
     handle {
         root * /var/www/pulso/dist
+
+        # Evitar que el navegador almacene en caché el HTML y el Service Worker
+        @noCache {
+            path /index.html /sw.js
+        }
+        header @noCache {
+            Cache-Control "no-cache, no-store, must-revalidate"
+            Pragma "no-cache"
+            Expires "0"
+        }
+
+        # Cachear assets con hash único de Vite para máxima velocidad
+        @staticAssets {
+            path /assets/*
+        }
+        header @staticAssets {
+            Cache-Control "public, max-age=31536000, immutable"
+        }
+
         try_files {path} /index.html
         file_server
     }

@@ -92,7 +92,6 @@
     <MetricsDashboard />
   {:else}
     <Header />
-    <InfoDisclaimer />
     <SyncCard on:synced={refreshPending} />
     <StatsDashboard />
 
@@ -101,7 +100,10 @@
       <SectorsList />
     </div>
 
-    <ReportForm on:queued={refreshPending} />
+    <div class="workspace-grid">
+      <ReportForm on:queued={refreshPending} />
+      <InfoDisclaimer />
+    </div>
   {/if}
 
   <footer class="app-footer">

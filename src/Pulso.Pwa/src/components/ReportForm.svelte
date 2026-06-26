@@ -108,7 +108,7 @@
   }
 </script>
 
-<div class="card" style="max-width: 600px; margin: 0 auto; width: 100%;">
+<div class="card">
   <h2 style="font-size: 20px; font-weight: 700;">Crear un Reporte de Ayuda</h2>
   <p style="color: var(--text-muted); font-size: 13px; margin-top: -8px;">
     Cualquier persona puede informar sobre una emergencia. Si no tiene señal o internet, el reporte se guardará en su teléfono de forma segura.
