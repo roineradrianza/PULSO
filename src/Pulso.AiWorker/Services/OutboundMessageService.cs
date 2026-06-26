@@ -37,6 +37,10 @@ public sealed class OutboundMessageService : IOutboundMessageService
     public Task SendLocationRequestAsync(PulsoPayload payload, CancellationToken cancellationToken)
         => SendTextAsync(payload.Channel, payload.Phone, LocationRequestMessage, cancellationToken);
 
+    /// <inheritdoc/>
+    public Task SendTextAsync(PulsoPayload payload, string message, CancellationToken cancellationToken)
+        => SendTextAsync(payload.Channel, payload.Phone, message, cancellationToken);
+
     private async Task SendTextAsync(string channel, string recipient, string text, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(recipient))
@@ -86,7 +90,7 @@ public sealed class OutboundMessageService : IOutboundMessageService
         if (!resp.IsSuccessStatusCode)
             _logger.LogWarning("Telegram sendMessage falló: {status}", resp.StatusCode);
         else
-            _logger.LogInformation("Solicitud de ubicación enviada por Telegram a {recipient}.", PiiMasking.MaskPhone(chatId));
+            _logger.LogInformation("Mensaje saliente enviado por Telegram a {recipient}.", PiiMasking.MaskPhone(chatId));
     }
 
     private async Task SendWhatsAppAsync(string recipient, string text, CancellationToken cancellationToken)
@@ -125,7 +129,7 @@ public sealed class OutboundMessageService : IOutboundMessageService
         }
         else
         {
-            _logger.LogInformation("Solicitud de ubicación enviada por WhatsApp a {recipient}.", PiiMasking.MaskPhone(recipient));
+            _logger.LogInformation("Mensaje saliente enviado por WhatsApp a {recipient}.", PiiMasking.MaskPhone(recipient));
         }
     }
 }

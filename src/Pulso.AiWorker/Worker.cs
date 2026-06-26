@@ -19,6 +19,15 @@ public class Worker : BackgroundService
     public const string ActivitySourceName = "Pulso.AiWorker";
     private static readonly ActivitySource ActivitySource = new(ActivitySourceName);
 
+    // Mensajes de confirmación hacia el ciudadano (best-effort, por el canal de origen).
+    private const string AckReceivedMessage =
+        "✅ Recibimos tu reporte. Lo estamos procesando…";
+    private const string LocationAttachedMessage =
+        "📍 Ubicación recibida. Tu reporte está completo. Gracias por ayudar.";
+    private const string OrphanLocationMessage =
+        "Recibimos tu ubicación, pero no encontramos un reporte reciente para asociarla. " +
+        "Por favor envía primero la descripción del incidente.";
+
     // Límite geográfico de Venezuela (bounding box).
     // Coordenadas fuera de este rectángulo se descartan para evitar el
     // envenenamiento del mapa con ubicaciones falsas de otros países.
@@ -130,15 +139,20 @@ public class Worker : BackgroundService
                     _logger.LogInformation(
                         "Location attached to the sender's previous report {id}.", attachedId.Value);
                     await PublishIncidentSignalAsync(attachedId.Value);
+                    await _outbound.SendTextAsync(payload, LocationAttachedMessage, cancellationToken);
                 }
                 else
                 {
                     // Sin reporte previo asociado: una ubicación sola no es accionable.
                     _logger.LogInformation("Location received with no pending report to attach to; ignored.");
+                    await _outbound.SendTextAsync(payload, OrphanLocationMessage, cancellationToken);
                 }
             }
             return;
         }
+
+        // Acuse inmediato: el ciudadano sabe que su reporte llegó y se está procesando.
+        await _outbound.SendTextAsync(payload, AckReceivedMessage, cancellationToken);
 
         // 1. Resolver y descargar media (audio o imagen; el video se descarta por política)
         var media = await _mediaDownload.ResolveMediaAsync(payload, cancellationToken);
@@ -197,7 +211,18 @@ public class Worker : BackgroundService
                 incidentId.Value, triage.Transcription, cancellationToken);
         }
 
-        // 8. Notificar a los clientes conectados (SSE) vía Redis pub/sub. Solo una
+        // 8. Confirmación final al ciudadano si el reporte quedó con ubicación (GPS o
+        //    geocodificada). Si no la tiene, el paso 5 ya respondió pidiendo la ubicación,
+        //    y la confirmación llegará cuando la comparta (rama attach-location).
+        if (incidentId.HasValue && latitude.HasValue && longitude.HasValue)
+        {
+            var place = string.IsNullOrWhiteSpace(triage.Sector) ? "" : $" en {triage.Sector}";
+            await _outbound.SendTextAsync(payload,
+                $"📍 Tu reporte quedó registrado{place}. Gracias por ayudar a tu comunidad.",
+                cancellationToken);
+        }
+
+        // 9. Notificar a los clientes conectados (SSE) vía Redis pub/sub. Solo una
         //    señal con el id; el cliente pedirá el delta por el endpoint saneado.
         if (incidentId.HasValue)
         {

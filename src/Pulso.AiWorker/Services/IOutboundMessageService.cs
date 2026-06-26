@@ -15,4 +15,11 @@ public interface IOutboundMessageService
     /// registran sin interrumpir el procesamiento del incidente.
     /// </summary>
     Task SendLocationRequestAsync(PulsoPayload payload, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Envía un mensaje de texto libre al ciudadano por el canal de origen (acuses,
+    /// confirmaciones, guías). Best-effort: los errores se registran sin interrumpir
+    /// el procesamiento. En canales sin vía de salida (p. ej. PWA) no hace nada.
+    /// </summary>
+    Task SendTextAsync(PulsoPayload payload, string message, CancellationToken cancellationToken);
 }
