@@ -23,7 +23,7 @@
 
   function severityColor(sit) {
     if (sit.is_person_found) {
-      return sit.found_person_verified ? 'var(--success-green)' : 'var(--warning-amber)';
+      return sit.found_person_verified ? 'var(--success-green)' : '#7ea085';
     }
     return RANK_COLOR[SEVERITY_RANK[sit.severity] ?? 0];
   }
@@ -96,15 +96,15 @@
         verificationBadge.style.color = 'var(--success-green)';
         verificationBadge.textContent = '✓ Confirmado';
       } else {
-        verificationBadge.style.background = 'rgba(255, 193, 7, 0.15)';
-        verificationBadge.style.color = 'var(--warning-amber)';
+        verificationBadge.style.background = 'rgba(126, 160, 133, 0.15)';
+        verificationBadge.style.color = '#7ea085';
         verificationBadge.textContent = 'Sin verificar';
 
         unverifiedNote = document.createElement('div');
         unverifiedNote.style.cssText =
           'font-size: 11px; color: var(--text-muted); font-style: italic; ' +
-          'margin-top: 4px; margin-bottom: 8px; border-left: 2px solid var(--warning-amber); padding-left: 6px;';
-        unverifiedNote.textContent = 'Reporte ciudadano. Confírmalo antes de suspender la búsqueda.';
+          'margin-top: 4px; margin-bottom: 8px; border-left: 2px solid #7ea085; padding-left: 6px;';
+        unverifiedNote.textContent = 'Aviso ciudadano sin confirmación oficial. Se recomienda verificar la información directamente en el lugar.';
       }
     }
 
