@@ -31,15 +31,14 @@ public class Worker : BackgroundService
         "No pudimos procesar el archivo que enviaste. Por favor reenvíalo o descríbenos por " +
         "texto qué está ocurriendo.";
     private const string WelcomeMessage =
-        "👋 ¡Bienvenido a PULSO!\n\n" +
-        "Somos una cartelera pública para reportar emergencias en Venezuela: desastres, " +
-        "daños en calles o casas, y personas desaparecidas o encontradas a salvo.\n\n" +
-        "Para crear un reporte sigue 2 pasos:\n\n" +
-        "📝 Paso 1: Describe lo que ocurre (qué pasó y dónde). Puedes escribirlo, enviar " +
-        "una nota de voz 🎤 o una foto 📷.\n\n" +
-        "📍 Paso 2: Comparte tu ubicación. Toca el ícono de adjuntar 📎 y elige " +
-        "\"Ubicación\" para marcarlo en el mapa.\n\n" +
-        "Tu reporte ayuda a coordinar la ayuda. ¡Gracias por sumarte!";
+        "👋 ¡Bienvenido a PULSO!\n" +
+        "Reporta aquí emergencias del terremoto en Venezuela:  personas desaparecidas o encontradas a salvo. Daños en calles o casas,\n\n" +
+        "✅ Sigue estos 2 pasos:\n\n" +
+        "1️⃣ Describe qué ocurre y dónde. \n" +
+        "Escríbe o envía una nota de voz 🎤 o una foto 📷 y envíala\n" +
+        "2️⃣Comparte tu ubicación. \n" +
+        "Coloca el ícono de adjuntar 📎 y elige \"Ubicación\".\n\n" +
+        "¡Gracias por ayudar!";
 
     // Límite geográfico de Venezuela (bounding box).
     // Coordenadas fuera de este rectángulo se descartan para evitar el
