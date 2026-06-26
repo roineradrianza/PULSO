@@ -35,3 +35,16 @@ public record LocationStat(
     [property: JsonPropertyName("incident_count")] int IncidentCount,
     [property: JsonPropertyName("people_found")] List<string> PeopleFound
 );
+
+public record MetricsHourItem(
+    [property: JsonPropertyName("hour")] int Hour,
+    [property: JsonPropertyName("count")] int Count
+);
+
+public record MetricsResponse(
+    [property: JsonPropertyName("engine_distribution")] Dictionary<string, int> EngineDistribution,
+    [property: JsonPropertyName("channel_distribution")] Dictionary<string, int> ChannelDistribution,
+    [property: JsonPropertyName("hourly_distribution")] List<MetricsHourItem> HourlyDistribution,
+    [property: JsonPropertyName("peak_hours")] List<MetricsHourItem> PeakHours
+);
+

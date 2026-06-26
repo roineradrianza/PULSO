@@ -12,5 +12,6 @@ public record TriageResult(
     [property: JsonPropertyName("sector")] string? Sector,
     [property: JsonPropertyName("is_person_found")] bool? IsPersonFound,
     [property: JsonPropertyName("found_person_name")] string? FoundPersonName,
-    [property: JsonPropertyName("found_person_document")] string? FoundPersonDocument
+    [property: JsonPropertyName("found_person_document")] string? FoundPersonDocument,
+    [property: JsonPropertyName("triage_provider")] string TriageProvider = "gemini"
 );

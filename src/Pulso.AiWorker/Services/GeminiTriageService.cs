@@ -79,8 +79,9 @@ public sealed class GeminiTriageService : IGeminiTriageService
         if (string.IsNullOrEmpty(candidateText))
             throw new InvalidOperationException("Respuesta de Gemini vacía.");
 
-        return JsonSerializer.Deserialize<TriageResult>(candidateText)
+        var triageResult = JsonSerializer.Deserialize<TriageResult>(candidateText)
             ?? throw new InvalidOperationException("Fallo al deserializar el resultado del triaje.");
+        return triageResult with { TriageProvider = "gemini" };
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -210,7 +211,8 @@ public sealed class GeminiTriageService : IGeminiTriageService
                 Sector:              "La Guaira",
                 IsPersonFound:       false,
                 FoundPersonName:     null,
-                FoundPersonDocument: null);
+                FoundPersonDocument: null,
+                TriageProvider:      "fallback_local");
         }
 
         return new TriageResult(
@@ -223,6 +225,7 @@ public sealed class GeminiTriageService : IGeminiTriageService
             Sector:              "Altamira",
             IsPersonFound:       false,
             FoundPersonName:     null,
-            FoundPersonDocument: null);
+            FoundPersonDocument: null,
+            TriageProvider:      "fallback_local");
     }
 }

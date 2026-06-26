@@ -152,5 +152,98 @@ public static class PulsoApiEndpoints
 
             return Results.Ok(list);
         });
+
+        // Obtener métricas y analíticas del sistema
+        app.MapGet("/api/v1/pulso/metrics", async (IConfiguration config) =>
+        {
+            var connStr = config.GetConnectionString("DefaultConnection");
+            
+            var engineStats = new Dictionary<string, int>();
+            var channelStats = new Dictionary<string, int>();
+            var hourlyDistribution = new List<MetricsHourItem>();
+            var peakHours = new List<MetricsHourItem>();
+
+            try
+            {
+                await using var conn = new NpgsqlConnection(connStr);
+                await conn.OpenAsync();
+
+                // 1. Distribución por Motor
+                var engineQuery = @"
+                    SELECT COALESCE(triage_provider, 'gemini') as provider, COUNT(*)::integer as count 
+                    FROM public.incidents 
+                    WHERE status != 'DUPLICATE'
+                    GROUP BY provider";
+                await using (var cmd = new NpgsqlCommand(engineQuery, conn))
+                await using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        engineStats[reader.GetString(0)] = reader.GetInt32(1);
+                    }
+                }
+
+                // 2. Distribución por Canal
+                var channelQuery = @"
+                    SELECT COALESCE(source_channel, 'unknown') as channel, COUNT(*)::integer as count 
+                    FROM public.incidents 
+                    WHERE status != 'DUPLICATE'
+                    GROUP BY channel";
+                await using (var cmd = new NpgsqlCommand(channelQuery, conn))
+                await using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        channelStats[reader.GetString(0)] = reader.GetInt32(1);
+                    }
+                }
+
+                // 3. Distribución por Hora (0-23)
+                var hourlyQuery = @"
+                    SELECT (EXTRACT(HOUR FROM created_at))::integer as hr, COUNT(*)::integer as count 
+                    FROM public.incidents 
+                    WHERE status != 'DUPLICATE'
+                    GROUP BY hr 
+                    ORDER BY hr ASC";
+                await using (var cmd = new NpgsqlCommand(hourlyQuery, conn))
+                await using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    var hourMap = new Dictionary<int, int>();
+                    while (await reader.ReadAsync())
+                    {
+                        hourMap[reader.GetInt32(0)] = reader.GetInt32(1);
+                    }
+                    for (int h = 0; h < 24; h++)
+                    {
+                        hourlyDistribution.Add(new MetricsHourItem(h, hourMap.TryGetValue(h, out var c) ? c : 0));
+                    }
+                }
+
+                // 4. Horas Pico (Top 3)
+                var peakQuery = @"
+                    SELECT (EXTRACT(HOUR FROM created_at))::integer as hr, COUNT(*)::integer as count 
+                    FROM public.incidents 
+                    WHERE status != 'DUPLICATE'
+                    GROUP BY hr 
+                    ORDER BY count DESC 
+                    LIMIT 3";
+                await using (var cmd = new NpgsqlCommand(peakQuery, conn))
+                await using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        peakHours.Add(new MetricsHourItem(reader.GetInt32(0), reader.GetInt32(1)));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogError(ex, "Error occurred while fetching system metrics.");
+                return Results.Problem("An error occurred while processing your request.");
+            }
+
+            return Results.Ok(new MetricsResponse(engineStats, channelStats, hourlyDistribution, peakHours));
+        });
     }
 }
+

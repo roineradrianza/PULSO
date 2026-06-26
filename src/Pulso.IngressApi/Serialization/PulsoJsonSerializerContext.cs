@@ -12,6 +12,10 @@ namespace Pulso.IngressApi.Serialization;
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(TelegramUpdate))]
 [JsonSerializable(typeof(WhatsAppWebhook))]
+[JsonSerializable(typeof(MetricsResponse))]
+[JsonSerializable(typeof(MetricsHourItem))]
+[JsonSerializable(typeof(List<MetricsHourItem>))]
+[JsonSerializable(typeof(Dictionary<string, int>))]
 internal partial class PulsoJsonSerializerContext : JsonSerializerContext
 {
 }
