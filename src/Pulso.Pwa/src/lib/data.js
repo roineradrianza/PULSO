@@ -3,7 +3,7 @@
 // traen incidentes nuevos desde el watermark. Persiste un snapshot en IndexedDB
 // para ver el panorama sin conexión.
 import { fetchSituations, fetchSectorStats, fetchSummary, fetchSystemMetrics } from './api.js';
-import { situations, sectorStats, summary, systemMetrics, showInfo } from './stores.js';
+import { situations, sectorStats, summary, systemMetrics, showInfo, showToast } from './stores.js';
 import { saveSnapshot, getSnapshot } from './db.js';
 
 let watermark = null;          // mayor created_at visto (ISO 8601)
@@ -24,6 +24,21 @@ function noteServerIssue() {
 }
 function noteServerOk() {
   serverDegraded = false;
+}
+
+// Feedback explícito cuando la carga la dispara el usuario (p. ej. elegir una fecha):
+// a diferencia del aviso "una sola vez" de fondo, aquí SIEMPRE se muestra el motivo.
+function announceLoadFailure(err) {
+  const status = err?.status;
+  if (status === 429) {
+    showToast('Demasiadas solicitudes en poco tiempo. Espera unos segundos e inténtalo de nuevo.', true);
+  } else if (status === 502 || status === 503 || status === 504) {
+    showToast('El servidor no está disponible por un momento. Inténtalo de nuevo en breve.', true);
+  } else if (status === undefined) {
+    showToast('Sin conexión con el servidor. Inténtalo de nuevo.', true);
+  } else {
+    showToast('No se pudieron cargar los datos. Inténtalo de nuevo.', true);
+  }
 }
 
 function publish() {
@@ -71,7 +86,8 @@ function persistSnapshot(merged) {
 }
 
 // Carga inicial completa: reemplaza el estado en memoria.
-export async function loadInitial(date = null) {
+// announce=true muestra feedback explícito si falla (carga disparada por el usuario).
+export async function loadInitial(date = null, { announce = false } = {}) {
   if (!navigator.onLine) return 0;
   try {
     currentQueryDate = date;
@@ -91,7 +107,8 @@ export async function loadInitial(date = null) {
     return sits.length;
   } catch (err) {
     console.error('Error en la carga inicial de datos:', err);
-    noteServerIssue();
+    if (announce) announceLoadFailure(err);
+    else noteServerIssue();
     return 0;
   }
 }
