@@ -185,11 +185,12 @@ public sealed class GeminiTriageService : IGeminiTriageService
                     transcription     = new { type = "STRING", description = "Transcripción completa si es audio, de lo contrario cadena vacía." },
                     description       = new { type = "STRING", description = "Resumen objetivo y breve (1-2 frases, en español) de lo que reporta el ciudadano o de lo que se observa en la imagen (daños, derrumbes, incendios, inundaciones, heridos). Útil como descripción del incidente cuando no hay texto escrito." },
                     sector            = new { type = "STRING", description = "Nombre normalizado del sector, urbanización o barrio (ej. Altamira, Petare, Catia, Chacao, La Guaira). Si no se menciona, cadena vacía." },
+                    is_actionable_report = new { type = "BOOLEAN", description = "false si el mensaje NO es un reporte real de emergencia (un saludo, una pregunta, una prueba, spam o conversación sin contenido accionable); true si describe una emergencia o situación concreta a atender." },
                     is_person_found   = new { type = "BOOLEAN", description = "Establecer en true si el reporte indica que una persona perdida o afectada fue encontrada o está a salvo." },
                     found_person_name = new { type = "STRING", description = "Nombre completo de la persona encontrada (si aplica, de lo contrario cadena vacía)." },
                     found_person_document = new { type = "STRING", description = "Número de cédula o documento de la persona encontrada (si aplica, solo dígitos, de lo contrario cadena vacía)." }
                 },
-                required = new[] { "severity", "category", "tags", "extracted_address", "affected_people", "transcription", "description", "sector", "is_person_found", "found_person_name", "found_person_document" }
+                required = new[] { "severity", "category", "tags", "extracted_address", "affected_people", "transcription", "description", "sector", "is_actionable_report", "is_person_found", "found_person_name", "found_person_document" }
             }
         }
     };
@@ -214,6 +215,7 @@ public sealed class GeminiTriageService : IGeminiTriageService
                 FoundPersonName:     null,
                 FoundPersonDocument: null,
                 Description:         "Posible derrumbe con personas afectadas en la zona.",
+                IsActionableReport:  true,
                 TriageProvider:      "fallback_local");
         }
 
@@ -229,6 +231,7 @@ public sealed class GeminiTriageService : IGeminiTriageService
             FoundPersonName:     null,
             FoundPersonDocument: null,
             Description:         "Posible daño estructural en una edificación.",
+            IsActionableReport:  true,
             TriageProvider:      "fallback_local");
     }
 }

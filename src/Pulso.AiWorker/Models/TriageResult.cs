@@ -16,5 +16,8 @@ public record TriageResult(
     // Resumen objetivo de lo reportado o de lo observado en la imagen/audio. Se usa
     // como texto del incidente cuando el ciudadano no escribió nada (solo media).
     [property: JsonPropertyName("description")] string? Description = null,
+    // false si el mensaje NO es un reporte real de emergencia (saludo, pregunta,
+    // prueba, spam). En ese caso el worker pide aclaración y no crea incidente.
+    [property: JsonPropertyName("is_actionable_report")] bool? IsActionableReport = null,
     [property: JsonPropertyName("triage_provider")] string TriageProvider = "gemini"
 );

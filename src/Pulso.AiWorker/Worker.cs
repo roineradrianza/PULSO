@@ -30,6 +30,18 @@ public class Worker : BackgroundService
     private const string MediaFailedMessage =
         "No pudimos procesar el archivo que enviaste. Por favor reenvíalo o descríbenos por " +
         "texto qué está ocurriendo.";
+
+    // Filtro de reportes no válidos.
+    //  - Capa 1 (sin IA): umbral mínimo de caracteres para texto del bot, solo atrapa
+    //    basura evidente ("ok", "hola"). Va bajo a propósito para no rechazar reportes
+    //    terse pero reales como "hay un herido".
+    //  - Capa 2 (IA): el flag is_actionable_report cubre lo sutil (saludos largos, preguntas).
+    private const int MinReportChars = 10;
+    private const string ClarifyReportMessage =
+        "🤔 No me quedó claro qué quieres reportar. Cuéntame qué está ocurriendo y dónde.\n\n" +
+        "Por ejemplo:\n" +
+        "• \"Se agrietó una pared en mi casa en Catia\"\n" +
+        "• \"Hay una persona atrapada en un derrumbe en Petare\"";
     private const string WelcomeMessage =
         "👋 ¡Bienvenido a PULSO!\n" +
         "Reporta aquí emergencias del terremoto en Venezuela:  personas desaparecidas o encontradas a salvo. Daños en calles o casas,\n\n" +
@@ -173,6 +185,15 @@ public class Worker : BackgroundService
             return;
         }
 
+        // 0c. Capa 1 (sin IA): reporte de texto demasiado breve. Pedir aclaración sin gastar IA.
+        if (IsTooShortReport(payload))
+        {
+            activity?.SetTag("pulso.operation", "clarify-too-short");
+            _logger.LogInformation("Text report too short; asking the user what they want to report.");
+            await _outbound.SendTextAsync(payload, ClarifyReportMessage, cancellationToken);
+            return;
+        }
+
         // 1. Resolver y descargar media (audio o imagen; el video se descarta por política)
         var media = await _mediaDownload.ResolveMediaAsync(payload, cancellationToken);
 
@@ -192,6 +213,17 @@ public class Worker : BackgroundService
         // 2. Triaje con IA
         _logger.LogInformation("Sending report to AI model for categorization and structured triage...");
         var triage = await _geminiTriage.TriageAsync(payload.TextBody, media, cancellationToken);
+
+        // 2b. Capa 2 (IA): si el modelo determinó que NO es un reporte real, pedir aclaración
+        //     (solo por canales con respuesta saliente) y no crear incidente.
+        if (triage.IsActionableReport == false &&
+            (payload.Channel == "telegram" || payload.Channel == "whatsapp"))
+        {
+            activity?.SetTag("pulso.operation", "clarify-not-actionable");
+            _logger.LogInformation("AI flagged the message as non-actionable; asking the user to clarify.");
+            await _outbound.SendTextAsync(payload, ClarifyReportMessage, cancellationToken);
+            return;
+        }
 
         // Texto a almacenar: la transcripción (audio); la descripción de la IA cuando el
         // ciudadano no escribió nada (solo media, p. ej. imagen sin caption); o su texto.
@@ -286,6 +318,16 @@ public class Worker : BackgroundService
         => payload.Channel == "telegram"
            && !string.IsNullOrWhiteSpace(payload.TextBody)
            && payload.TextBody.TrimStart().StartsWith('/');
+
+    /// <summary>
+    /// Capa 1: reporte de TEXTO por el bot (Telegram/WhatsApp), sin media, con texto real
+    /// del ciudadano más corto que el mínimo. La media y la PWA quedan exentas.
+    /// </summary>
+    private static bool IsTooShortReport(PulsoPayload payload)
+        => (payload.Channel == "telegram" || payload.Channel == "whatsapp")
+           && string.IsNullOrEmpty(payload.MediaType)
+           && HasRealText(payload.TextBody)
+           && payload.TextBody.Trim().Length < MinReportChars;
 
     /// <summary>
     /// True si el texto es contenido real del ciudadano (no un placeholder inyectado
