@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Microsoft.Extensions.Hosting;
 using Pulso.AiWorker.Infrastructure;
 using Pulso.AiWorker.Models;
 using Pulso.AiWorker.Services;
@@ -22,8 +23,6 @@ public class Worker : BackgroundService
     // Mensajes de confirmación hacia el ciudadano (best-effort, por el canal de origen).
     private const string AckReceivedMessage =
         "✅ Recibimos tu reporte. Lo estamos procesando…";
-    private const string LocationAttachedMessage =
-        "📍 Ubicación recibida. Tu reporte está completo. Gracias por ayudar.";
     private const string OrphanLocationMessage =
         "Recibimos tu ubicación, pero no encontramos un reporte reciente para asociarla. " +
         "Por favor envía primero la descripción del incidente.";
@@ -42,15 +41,6 @@ public class Worker : BackgroundService
         "Por ejemplo:\n" +
         "• \"Hay una persona atrapada en un derrumbe en Petare\"\n" +
         "• Se necesitan insumos en catia en la calle XXXX";
-    private const string WelcomeMessage =
-        "👋 ¡Bienvenido a PULSO!\n" +
-        "Reporta aquí emergencias del terremoto en Venezuela:  personas desaparecidas o encontradas a salvo. Daños en calles o casas,\n\n" +
-        "✅ Sigue estos 2 pasos:\n\n" +
-        "1️⃣ Describe qué ocurre y dónde. \n" +
-        "Escríbe o envía una nota de voz 🎤 o una foto 📷 y envíala\n" +
-        "2️⃣Comparte tu ubicación. \n" +
-        "Coloca el ícono de adjuntar 📎 y elige \"Ubicación\".\n\n" +
-        "¡Gracias por ayudar!";
 
     // Límite geográfico de Venezuela (bounding box).
     // Coordenadas fuera de este rectángulo se descartan para evitar el
@@ -67,6 +57,7 @@ public class Worker : BackgroundService
     private readonly IIncidentRepository      _incidentRepo;
     private readonly IOutboundMessageService  _outbound;
     private readonly IGeocodingService        _geocoding;
+    private readonly IHostEnvironment         _env;
 
     public Worker(
         ILogger<Worker>          logger,
@@ -75,7 +66,8 @@ public class Worker : BackgroundService
         IMediaDownloadService    mediaDownload,
         IIncidentRepository      incidentRepo,
         IOutboundMessageService  outbound,
-        IGeocodingService        geocoding)
+        IGeocodingService        geocoding,
+        IHostEnvironment         env)
     {
         _logger        = logger;
         _redis         = redis;
@@ -84,6 +76,7 @@ public class Worker : BackgroundService
         _incidentRepo  = incidentRepo;
         _outbound      = outbound;
         _geocoding     = geocoding;
+        _env           = env;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -152,7 +145,7 @@ public class Worker : BackgroundService
         {
             activity?.SetTag("pulso.operation", "bot-command");
             _logger.LogInformation("Bot command received; replying with welcome and skipping report.");
-            await _outbound.SendTextAsync(payload, WelcomeMessage, cancellationToken);
+            await _outbound.SendTextAsync(payload, GetWelcomeMessage(), cancellationToken);
             return;
         }
 
@@ -173,7 +166,12 @@ public class Worker : BackgroundService
                     _logger.LogInformation(
                         "Location attached to the sender's previous report {id}.", attachedId.Value);
                     await PublishIncidentSignalAsync(attachedId.Value);
-                    await _outbound.SendTextAsync(payload, LocationAttachedMessage, cancellationToken);
+                    var url = GetPlatformUrl();
+                    await _outbound.SendTextAsync(payload,
+                        $"📍 Ubicación recibida. Tu reporte está completo.\n" +
+                        $"Puedes visualizarlo en el mapa interactivo en: {url}\n\n" +
+                        $"Gracias por ayudar.",
+                        cancellationToken);
                 }
                 else
                 {
@@ -292,8 +290,11 @@ public class Worker : BackgroundService
         if (incidentId.HasValue && latitude.HasValue && longitude.HasValue)
         {
             var place = string.IsNullOrWhiteSpace(triage.Sector) ? "" : $" en {triage.Sector}";
+            var url = GetPlatformUrl();
             await _outbound.SendTextAsync(payload,
-                $"📍 Tu reporte quedó registrado{place}. Gracias por ayudar a tu comunidad.",
+                $"📍 Tu reporte quedó registrado{place}.\n" +
+                $"Puedes visualizarlo en el mapa interactivo en: {url}\n\n" +
+                $"Gracias por ayudar a tu comunidad.",
                 cancellationToken);
         }
 
@@ -383,5 +384,26 @@ public class Worker : BackgroundService
         }
 
         return (lat, lng);
+    }
+
+    private string GetPlatformUrl()
+    {
+        return _env.IsProduction() 
+            ? "https://pulsoaid.org" 
+            : "https://stage.pulsoaid.org";
+    }
+
+    private string GetWelcomeMessage()
+    {
+        var url = GetPlatformUrl();
+        return "👋 ¡Bienvenido a PULSO!\n" +
+               "Reporta aquí emergencias del terremoto en Venezuela:  personas desaparecidas o encontradas a salvo. Daños en calles o casas,\n\n" +
+               "✅ Sigue estos 2 pasos:\n\n" +
+               "1️⃣ Describe qué ocurre y dónde. \n" +
+               "Escríbe o envía una nota de voz 🎤 o una foto 📷 y envíala\n" +
+               "2️⃣Comparte tu ubicación. \n" +
+               "Coloca el ícono de adjuntar 📎 y elige \"Ubicación\".\n\n" +
+               $"Aquí puedes ver los reportes: {url}\n\n" +
+               "¡Gracias por ayudar!";
     }
 }
