@@ -10,6 +10,7 @@ RestartSec=10
 KillSignal=SIGINT
 SyslogIdentifier=pulso-worker
 Environment=ASPNETCORE_ENVIRONMENT=Staging
+Environment=DOTNET_ENVIRONMENT=Staging
 Environment=GeminiModelName=gemini-3.1-flash-lite
 Environment=GeminiApiKey=TU_GEMINI_API_KEY
 Environment=ConnectionStrings__UpstashRedis=localhost:6379,password=TU_REDIS_PASSWORD,abortConnect=false
