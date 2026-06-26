@@ -39,7 +39,7 @@ h1, h2, h3, .brand {
 
 .container {
     width: 100%;
-    max-width: 1400px;
+    max-width: 1700px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -182,11 +182,17 @@ header {
 
 /* Map styling */
 .map-container {
-    height: 420px;
+    height: 580px;
     width: 100%;
     border-radius: 12px;
     overflow: hidden;
     border: 1px solid var(--card-border);
+}
+
+@media (max-width: 850px) {
+    .map-container {
+        height: 380px;
+    }
 }
 
 #map {
@@ -233,9 +239,15 @@ header {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    max-height: 380px;
+    max-height: 540px;
     overflow-y: auto;
     padding-right: 4px;
+}
+
+@media (max-width: 850px) {
+    .sectors-list {
+        max-height: 320px;
+    }
 }
 
 .sector-card {
@@ -293,11 +305,35 @@ header {
     color: var(--text-muted);
 }
 
-.sector-people {
+.sector-people-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.people-label {
     font-size: 11px;
     color: var(--success-green);
-    text-align: right;
-    max-width: 150px;
+    font-weight: 600;
+    text-align: left;
+}
+
+.people-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.person-badge {
+    font-size: 10px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    color: var(--success-green);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+    max-width: 130px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

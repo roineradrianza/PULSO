@@ -51,9 +51,16 @@
               <span class="status-dot {stat.status.toLowerCase()}"></span>
               {stat.sector}
             </div>
-            <div class="sector-people">
-              {stat.people_found.length > 0 ? `Localizados: ${stat.people_found.join(', ')}` : ''}
-            </div>
+            {#if stat.people_found.length > 0}
+              <div class="sector-people-container">
+                <span class="people-label">Localizados ({stat.people_found.length}):</span>
+                <div class="people-badges">
+                  {#each stat.people_found as person}
+                    <span class="person-badge" title={person}>{person}</span>
+                  {/each}
+                </div>
+              </div>
+            {/if}
           </div>
           <div class="sector-meta">
             <span class="sector-count">{stat.incident_count} reportes</span>
