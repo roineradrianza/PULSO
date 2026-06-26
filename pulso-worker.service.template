@@ -1,0 +1,20 @@
+[Unit]
+Description=PULSO AI Worker Service
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/pulso/worker
+ExecStart=/usr/bin/dotnet /opt/pulso/worker/Pulso.AiWorker.dll
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+SyslogIdentifier=pulso-worker
+Environment=ASPNETCORE_ENVIRONMENT=Staging
+Environment=GeminiModelName=gemini-3.1-flash-lite
+Environment=GeminiApiKey=TU_GEMINI_API_KEY
+Environment=ConnectionStrings__UpstashRedis=TU_REDIS_HOST:6379,password=TU_REDIS_PASSWORD,ssl=true
+Environment="ConnectionStrings__DefaultConnection=Host=TU_DB_HOST;Port=6543;Database=postgres;Username=postgres.TU_PROJECT_ID;Password=TU_DB_PASSWORD;SslMode=Require;Trust Server Certificate=true;No Reset On Close=true;"
+Environment=Telegram__BotToken=TU_TELEGRAM_BOT_TOKEN
+
+[Install]
+WantedBy=multi-user.target

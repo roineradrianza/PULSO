@@ -1,0 +1,18 @@
+[Unit]
+Description=PULSO Ingress API Service
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/pulso/api
+ExecStart=/usr/bin/dotnet /opt/pulso/api/Pulso.IngressApi.dll --urls "http://localhost:5152"
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+SyslogIdentifier=pulso-api
+Environment=ASPNETCORE_ENVIRONMENT=Staging
+Environment=ConnectionStrings__UpstashRedis=TU_REDIS_HOST:6379,password=TU_REDIS_PASSWORD,ssl=true
+Environment="ConnectionStrings__DefaultConnection=Host=TU_DB_HOST;Port=6543;Database=postgres;Username=postgres.TU_PROJECT_ID;Password=TU_DB_PASSWORD;SslMode=Require;Trust Server Certificate=true;No Reset On Close=true;"
+Environment=Telegram__SecretToken=TU_TELEGRAM_SECRET_TOKEN
+
+[Install]
+WantedBy=multi-user.target

@@ -61,4 +61,6 @@ publish-api/
 publish-worker/
 *.tar.gz
 *.key
+pulso-api.service
+pulso-worker.service
 
