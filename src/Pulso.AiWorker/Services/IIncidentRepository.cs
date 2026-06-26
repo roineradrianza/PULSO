@@ -28,4 +28,18 @@ public interface IIncidentRepository
         Guid incidentId,
         string transcription,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Adjunta coordenadas GPS de hardware al reporte MÁS RECIENTE del mismo
+    /// remitente que aún no tiene ubicación (dentro de una ventana de tiempo).
+    /// Sirve para correlacionar una "ubicación suelta" enviada como respuesta a la
+    /// solicitud del bot con el reporte original, en vez de crear un incidente vacío.
+    /// Devuelve el id del incidente actualizado, o null si no había ninguno pendiente.
+    /// </summary>
+    Task<Guid?> TryAttachLocationToRecentAsync(
+        string channel,
+        string phone,
+        double latitude,
+        double longitude,
+        CancellationToken cancellationToken);
 }

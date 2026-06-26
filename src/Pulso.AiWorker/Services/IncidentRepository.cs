@@ -87,4 +87,50 @@ public sealed class IncidentRepository : IIncidentRepository
 
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<Guid?> TryAttachLocationToRecentAsync(
+        string channel,
+        string phone,
+        double latitude,
+        double longitude,
+        CancellationToken cancellationToken)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        // Selecciona el reporte más reciente del remitente que aún NO tiene GPS exacto
+        // (is_hardware_gps = false cubre tanto los sin coordenadas como los aproximados/
+        // geocodificados) dentro de una ventana de 2 h, y le adjunta el GPS de hardware,
+        // mejorando una ubicación aproximada a exacta si aplica. Atómico: SELECT + UPDATE.
+        // created_at se refresca a now() a propósito: el reporte recién se vuelve
+        // mapeable al obtener su ubicación, y así entra en el delta del SSE
+        // (que filtra por created_at > watermark) y el pin aparece en tiempo real.
+        await using var cmd = new NpgsqlCommand(@"
+            UPDATE public.incidents
+            SET coordinates     = ST_SetSRID(ST_MakePoint(@lng, @lat), 4326),
+                is_hardware_gps = true,
+                status          = CASE WHEN status = 'PENDING_LOCATION' THEN 'NEW'::incident_status ELSE status END,
+                created_at      = now(),
+                updated_at      = now()
+            WHERE id = (
+                SELECT id FROM public.incidents
+                WHERE sender_phone   = @phone
+                  AND source_channel = @channel
+                  AND is_hardware_gps = false
+                  AND status != 'DUPLICATE'
+                  AND created_at >= now() - interval '2 hours'
+                ORDER BY created_at DESC
+                LIMIT 1
+            )
+            RETURNING id", conn);
+
+        cmd.Parameters.AddWithValue("lng",     longitude);
+        cmd.Parameters.AddWithValue("lat",     latitude);
+        cmd.Parameters.AddWithValue("phone",   phone);
+        cmd.Parameters.AddWithValue("channel", channel);
+
+        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+        return result is Guid guid ? guid : null;
+    }
 }

@@ -113,6 +113,33 @@ public class Worker : BackgroundService
         activity?.SetTag("pulso.channel", payload.Channel);
         activity?.SetTag("messaging.system", "redis");
 
+        // 0. ¿Es una respuesta de ubicación? (coordenadas sin texto, p. ej. el usuario
+        //    compartió su ubicación tras pedírsela el bot). En ese caso NO creamos un
+        //    incidente vacío: adjuntamos las coordenadas al reporte previo del remitente.
+        if (IsLocationReply(payload))
+        {
+            activity?.SetTag("pulso.operation", "attach-location");
+            var (replyLat, replyLng) = SanitizeCoordinates(payload.Latitude, payload.Longitude);
+            if (replyLat.HasValue && replyLng.HasValue)
+            {
+                var attachedId = await _incidentRepo.TryAttachLocationToRecentAsync(
+                    payload.Channel, payload.Phone, replyLat.Value, replyLng.Value, cancellationToken);
+
+                if (attachedId.HasValue)
+                {
+                    _logger.LogInformation(
+                        "Location attached to the sender's previous report {id}.", attachedId.Value);
+                    await PublishIncidentSignalAsync(attachedId.Value);
+                }
+                else
+                {
+                    // Sin reporte previo asociado: una ubicación sola no es accionable.
+                    _logger.LogInformation("Location received with no pending report to attach to; ignored.");
+                }
+            }
+            return;
+        }
+
         // 1. Resolver y descargar media (audio o imagen; el video se descarta por política)
         var media = await _mediaDownload.ResolveMediaAsync(payload, cancellationToken);
 
@@ -174,19 +201,37 @@ public class Worker : BackgroundService
         //    señal con el id; el cliente pedirá el delta por el endpoint saneado.
         if (incidentId.HasValue)
         {
-            try
-            {
-                await _redis.GetSubscriber().PublishAsync(
-                    RedisChannel.Literal("pulso:incidents:events"), incidentId.Value.ToString());
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "No se pudo publicar la señal de incidente nuevo (no crítico).");
-            }
+            await PublishIncidentSignalAsync(incidentId.Value);
         }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Una "respuesta de ubicación": trae coordenadas pero no texto (el usuario
+    /// compartió su ubicación, normalmente tras pedírsela el bot).
+    /// </summary>
+    private static bool IsLocationReply(PulsoPayload payload)
+        => payload.Latitude.HasValue
+           && payload.Longitude.HasValue
+           && string.IsNullOrWhiteSpace(payload.TextBody);
+
+    /// <summary>
+    /// Publica en Redis pub/sub la señal de incidente (creado o actualizado) para que
+    /// el SSE notifique a los clientes. Solo el id; sin PII. No crítico.
+    /// </summary>
+    private async Task PublishIncidentSignalAsync(Guid incidentId)
+    {
+        try
+        {
+            await _redis.GetSubscriber().PublishAsync(
+                RedisChannel.Literal("pulso:incidents:events"), incidentId.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudo publicar la señal de incidente (no crítico).");
+        }
+    }
 
     /// <summary>
     /// Descarta coordenadas fuera del bounding box de Venezuela para evitar el
