@@ -14,6 +14,11 @@
   import { countQueued } from './lib/db.js';
 
   let pollTimer;
+  let currentView = 'main';
+
+  function updateViewFromHash() {
+    currentView = window.location.hash === '#/metrics' ? 'metrics' : 'main';
+  }
 
   async function refreshPending() {
     pendingCount.set(await countQueued());
@@ -33,7 +38,9 @@
   onMount(() => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('hashchange', updateViewFromHash);
 
+    updateViewFromHash();
     loadSituationsAndStats();
     refreshPending();
 
@@ -47,22 +54,26 @@
     clearInterval(pollTimer);
     window.removeEventListener('online', handleOnline);
     window.removeEventListener('offline', handleOffline);
+    window.removeEventListener('hashchange', updateViewFromHash);
   });
 </script>
 
 <div class="container">
-  <Header />
-  <InfoDisclaimer />
-  <SyncCard on:synced={refreshPending} />
-  <StatsDashboard />
-  <MetricsDashboard />
+  {#if currentView === 'metrics'}
+    <MetricsDashboard />
+  {:else}
+    <Header />
+    <InfoDisclaimer />
+    <SyncCard on:synced={refreshPending} />
+    <StatsDashboard />
 
-  <div class="workspace-grid">
-    <MapView />
-    <SectorsList />
-  </div>
+    <div class="workspace-grid">
+      <MapView />
+      <SectorsList />
+    </div>
 
-  <ReportForm on:queued={refreshPending} />
+    <ReportForm on:queued={refreshPending} />
+  {/if}
 </div>
 
 <Toast />

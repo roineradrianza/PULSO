@@ -7,6 +7,8 @@ namespace Pulso.IngressApi.Serialization;
 [JsonSerializable(typeof(PulsoPayload))]
 [JsonSerializable(typeof(SituationItem))]
 [JsonSerializable(typeof(List<SituationItem>))]
+[JsonSerializable(typeof(SituationDetail))]
+[JsonSerializable(typeof(SituationSummary))]
 [JsonSerializable(typeof(LocationStat))]
 [JsonSerializable(typeof(List<LocationStat>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]

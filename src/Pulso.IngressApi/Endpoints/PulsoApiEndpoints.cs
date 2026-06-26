@@ -37,11 +37,15 @@ public static class PulsoApiEndpoints
             return Results.Ok(new { status = "Queued", messageId = payload.MessageId });
         });
 
-        // Obtener situaciones activas georreferenciadas.
-        app.MapGet("/api/v1/pulso/situations", async (IConfiguration config) =>
+        // Situaciones georreferenciadas (payload LIVIANO, sin raw_text).
+        // ?since=<ISO8601> -> carga incremental (delta); ?limit=N -> tope de filas.
+        app.MapGet("/api/v1/pulso/situations", async (HttpRequest request, IConfiguration config) =>
         {
             var connStr = config.GetConnectionString("DefaultConnection");
             var list = new List<SituationItem>();
+
+            DateTimeOffset? since = DateTimeOffset.TryParse(request.Query["since"].ToString(), out var s) ? s : null;
+            int limit = int.TryParse(request.Query["limit"].ToString(), out var l) ? Math.Clamp(l, 1, 2000) : 500;
 
             try
             {
@@ -53,17 +57,21 @@ public static class PulsoApiEndpoints
                         id,
                         ai_category,
                         severity::text,
-                        raw_text,
                         COALESCE(sector, '') as sector,
                         ST_Y(coordinates::geometry) as latitude,
                         ST_X(coordinates::geometry) as longitude,
                         found_person_name,
                         created_at
                     FROM public.incidents
-                    WHERE status != 'DUPLICATE'
-                    ORDER BY created_at DESC";
+                    WHERE status != 'DUPLICATE'"
+                    + (since.HasValue ? " AND created_at > @since" : "")
+                    + @"
+                    ORDER BY created_at DESC
+                    LIMIT @limit";
 
                 await using var cmd = new NpgsqlCommand(query, conn);
+                if (since.HasValue) cmd.Parameters.AddWithValue("since", since.Value.UtcDateTime);
+                cmd.Parameters.AddWithValue("limit", limit);
                 await using var reader = await cmd.ExecuteReaderAsync();
 
                 while (await reader.ReadAsync())
@@ -71,25 +79,15 @@ public static class PulsoApiEndpoints
                     var id = reader.GetGuid(0).ToString();
                     var category = reader.IsDBNull(1) ? "" : reader.GetString(1);
                     var severity = reader.IsDBNull(2) ? "" : reader.GetString(2);
-                    var rawText = reader.IsDBNull(3) ? "" : reader.GetString(3);
-                    var sector = reader.GetString(4);
-                    double? lat = reader.IsDBNull(5) ? null : reader.GetDouble(5);
-                    double? lng = reader.IsDBNull(6) ? null : reader.GetDouble(6);
-                    var personName = reader.IsDBNull(7) ? null : reader.GetString(7);
-                    var createdAt = reader.GetDateTime(8);
+                    var sector = reader.GetString(3);
+                    double? lat = reader.IsDBNull(4) ? null : reader.GetDouble(4);
+                    double? lng = reader.IsDBNull(5) ? null : reader.GetDouble(5);
+                    var personName = reader.IsDBNull(6) ? null : reader.GetString(6);
+                    var createdAt = reader.GetDateTime(7);
 
                     list.Add(new SituationItem(
-                        id,
-                        category,
-                        severity,
-                        rawText,
-                        sector,
-                        lat,
-                        lng,
-                        !string.IsNullOrEmpty(personName),
-                        personName,
-                        createdAt
-                    ));
+                        id, category, severity, sector, lat, lng,
+                        !string.IsNullOrEmpty(personName), personName, createdAt));
                 }
             }
             catch (Exception ex)
@@ -99,6 +97,70 @@ public static class PulsoApiEndpoints
             }
 
             return Results.Ok(list);
+        });
+
+        // Detalle pesado de un incidente (raw_text), servido bajo demanda al abrir el popup.
+        app.MapGet("/api/v1/pulso/situations/{id}", async (string id, IConfiguration config) =>
+        {
+            if (!Guid.TryParse(id, out var guid))
+                return Results.BadRequest(new { error = "id inválido." });
+
+            var connStr = config.GetConnectionString("DefaultConnection");
+            try
+            {
+                await using var conn = new NpgsqlConnection(connStr);
+                await conn.OpenAsync();
+
+                await using var cmd = new NpgsqlCommand(
+                    "SELECT raw_text FROM public.incidents WHERE id = @id AND status != 'DUPLICATE'", conn);
+                cmd.Parameters.AddWithValue("id", guid);
+
+                await using var reader = await cmd.ExecuteReaderAsync();
+                if (!await reader.ReadAsync())
+                    return Results.NotFound();
+
+                var rawText = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                return Results.Ok(new SituationDetail(id, rawText));
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogError(ex, "Error occurred while fetching situation detail.");
+                return Results.Problem("An error occurred while processing your request.");
+            }
+        });
+
+        // Totales agregados para las tarjetas del dashboard (independientes del subconjunto cargado).
+        app.MapGet("/api/v1/pulso/summary", async (IConfiguration config) =>
+        {
+            var connStr = config.GetConnectionString("DefaultConnection");
+            try
+            {
+                await using var conn = new NpgsqlConnection(connStr);
+                await conn.OpenAsync();
+
+                var query = @"
+                    SELECT
+                        COUNT(*) FILTER (WHERE status != 'DUPLICATE') AS total,
+                        COUNT(*) FILTER (WHERE status != 'DUPLICATE' AND found_person_name IS NOT NULL) AS people,
+                        (SELECT COUNT(DISTINCT sector) FROM public.incidents
+                         WHERE status != 'DUPLICATE' AND sector IS NOT NULL AND sector != '' AND severity = 'CRITICAL') AS critical_sectors
+                    FROM public.incidents";
+
+                await using var cmd = new NpgsqlCommand(query, conn);
+                await using var reader = await cmd.ExecuteReaderAsync();
+                if (!await reader.ReadAsync())
+                    return Results.Ok(new SituationSummary(0, 0, 0));
+
+                return Results.Ok(new SituationSummary(
+                    (int)reader.GetInt64(0),
+                    (int)reader.GetInt64(1),
+                    (int)reader.GetInt64(2)));
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogError(ex, "Error occurred while fetching summary.");
+                return Results.Problem("An error occurred while processing your request.");
+            }
         });
 
         // Obtener agregación de estatus consolidado por sector.
@@ -122,7 +184,9 @@ public static class PulsoApiEndpoints
                             WHEN bool_or(severity = 'MEDIUM') THEN 'MEDIUM'
                             ELSE 'LOW'
                         END as sector_status,
-                        string_agg(found_person_name, ',') filter (where found_person_name is not null) as people_names
+                        string_agg(found_person_name, ',') filter (where found_person_name is not null) as people_names,
+                        AVG(ST_Y(coordinates::geometry)) as latitude,
+                        AVG(ST_X(coordinates::geometry)) as longitude
                     FROM public.incidents
                     WHERE status != 'DUPLICATE' AND sector IS NOT NULL AND sector != ''
                     GROUP BY sector_name";
@@ -136,12 +200,14 @@ public static class PulsoApiEndpoints
                     var count = (int)reader.GetInt64(1);
                     var status = reader.GetString(2);
                     var namesRaw = reader.IsDBNull(3) ? "" : reader.GetString(3);
+                    double? lat = reader.IsDBNull(4) ? null : reader.GetDouble(4);
+                    double? lng = reader.IsDBNull(5) ? null : reader.GetDouble(5);
 
                     var peopleList = string.IsNullOrEmpty(namesRaw)
                         ? new List<string>()
                         : namesRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
 
-                    list.Add(new LocationStat(sector, status, count, peopleList));
+                    list.Add(new LocationStat(sector, status, count, peopleList, lat, lng));
                 }
             }
             catch (Exception ex)

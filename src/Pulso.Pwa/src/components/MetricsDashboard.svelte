@@ -2,14 +2,12 @@
   import { systemMetrics, online } from '../lib/stores.js';
   import { loadSituationsAndStats } from '../lib/data.js';
 
-  let isExpanded = false;
-
-  function toggleExpand() {
-    isExpanded = !isExpanded;
-  }
-
   async function handleRefresh() {
     await loadSituationsAndStats();
+  }
+
+  function goBack() {
+    window.location.hash = '';
   }
 
   // Reactive variables computed from systemMetrics store
@@ -28,220 +26,272 @@
   $: maxHourlyCount = Math.max(...hourlyDist.map(h => h.count), 1);
 </script>
 
-<div class="metrics-container card">
-  <div 
-    class="metrics-header" 
-    on:click={toggleExpand} 
-    on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleExpand()}
-    role="button" 
-    tabindex="0"
-  >
-    <div class="header-title">
+<div class="metrics-page">
+  <div class="metrics-nav">
+    <button class="btn-back" on:click={goBack}>
+      ← Volver al Mapa
+    </button>
+    <div class="nav-title">
       <span class="metrics-pulse"></span>
-      <h3>Métricas de Procesamiento y Analíticas</h3>
+      <h2>Consola de Métricas y Analíticas del Sistema</h2>
     </div>
-    <div class="header-actions">
+    <div>
       {#if $online}
-        <button class="btn-refresh" on:click|stopPropagation={handleRefresh} title="Actualizar métricas">
-          🔄
+        <button class="btn-refresh" on:click={handleRefresh} title="Actualizar métricas">
+          🔄 Actualizar
         </button>
       {/if}
-      <button class="btn-toggle">
-        {isExpanded ? '▲ Colapsar' : '▼ Expandir'}
-      </button>
     </div>
   </div>
 
-  {#if isExpanded}
-    {#if !$online}
-      <div class="offline-warning">
-        Las métricas del sistema no están disponibles sin conexión celular.
-      </div>
-    {:else}
-      <div class="metrics-grid">
-        <!-- 1. Distribución del Motor de IA vs Contingencia -->
-        <div class="metric-section">
+  {#if !$online}
+    <div class="offline-warning">
+      Las métricas del sistema no están disponibles sin conexión celular. Por favor, conéctese a internet para ver los datos de analíticas en tiempo real.
+    </div>
+  {:else if !metrics}
+    <div class="loading-state">
+      Cargando métricas del sistema...
+    </div>
+  {:else}
+    <div class="metrics-grid">
+      <!-- 1. Distribución del Motor de IA vs Contingencia -->
+      <div class="metric-section card">
+        <div class="section-header">
+          <span class="section-icon">🤖</span>
           <h4>Distribución del Motor de Triaje</h4>
-          <p class="section-desc">Monitorea el uso de Gemini IA frente al motor local de contingencia.</p>
-          <div class="engine-bar-container">
-            <div class="engine-bar gemini" style="width: {geminiPercent}%">
-              <span class="bar-label">Gemini ({geminiPercent}%)</span>
-            </div>
-            <div class="engine-bar fallback" style="width: {fallbackPercent}%">
-              <span class="bar-label">Contingencia ({fallbackPercent}%)</span>
-            </div>
+        </div>
+        <p class="section-desc">Monitoreo de carga entre el motor principal de Inteligencia Artificial (Gemini) y el motor local de contingencia.</p>
+        
+        <div class="engine-bar-container">
+          <div class="engine-bar gemini" style="width: {geminiPercent}%">
+            <span class="bar-label">Gemini ({geminiPercent}%)</span>
           </div>
-          <div class="engine-legend">
-            <div class="legend-item"><span class="bullet gemini-dot"></span> Gemini: <strong>{engineDist['gemini'] || 0}</strong></div>
-            <div class="legend-item"><span class="bullet fallback-dot"></span> Fallback Local: <strong>{engineDist['fallback_local'] || 0}</strong></div>
+          <div class="engine-bar fallback" style="width: {fallbackPercent}%">
+            <span class="bar-label">Contingencia ({fallbackPercent}%)</span>
           </div>
         </div>
 
-        <!-- 2. Distribución de Canales -->
-        <div class="metric-section">
-          <h4>Distribución por Canales de Origen</h4>
-          <p class="section-desc">Medios de recepción de los reportes ciudadanos.</p>
-          <div class="channels-grid">
-            <div class="channel-pill whatsapp">
-              <span class="channel-icon">💬</span>
-              <span class="channel-name">WhatsApp</span>
-              <span class="channel-count">{channelDist['whatsapp'] || 0}</span>
+        <div class="engine-legend">
+          <div class="legend-card gemini-card">
+            <div class="legend-header">
+              <span class="bullet gemini-dot"></span>
+              <span>Motor IA Gemini</span>
             </div>
-            <div class="channel-pill telegram">
-              <span class="channel-icon">✈️</span>
-              <span class="channel-name">Telegram</span>
-              <span class="channel-count">{channelDist['telegram'] || 0}</span>
+            <div class="legend-value">{engineDist['gemini'] || 0} <span class="legend-unit">reportes</span></div>
+          </div>
+          <div class="legend-card fallback-card">
+            <div class="legend-header">
+              <span class="bullet fallback-dot"></span>
+              <span>Contingencia Local</span>
             </div>
-            <div class="channel-pill pwa">
-              <span class="channel-icon">📱</span>
-              <span class="channel-name">PWA Web</span>
-              <span class="channel-count">{channelDist['pwa'] || 0}</span>
-            </div>
+            <div class="legend-value">{engineDist['fallback_local'] || 0} <span class="legend-unit">reportes</span></div>
           </div>
         </div>
+      </div>
 
-        <!-- 3. Horas Pico -->
-        <div class="metric-section full-width">
-          <h4>Horas Pico de Mayor Uso (Top 3)</h4>
-          <div class="peaks-container">
-            {#each peakHours as peak, idx}
-              <div class="peak-item">
-                <span class="peak-rank">#{idx + 1}</span>
-                <span class="peak-time">{peak.hour.toString().padStart(2, '0')}:00 hs</span>
-                <span class="peak-count">{peak.count} reportes</span>
+      <!-- 2. Distribución de Canales -->
+      <div class="metric-section card">
+        <div class="section-header">
+          <span class="section-icon">📡</span>
+          <h4>Distribución por Canales de Ingesta</h4>
+        </div>
+        <p class="section-desc">Identificación de los canales y medios por los cuales los ciudadanos envían sus reportes de emergencia.</p>
+        
+        <div class="channels-grid">
+          <div class="channel-pill whatsapp">
+            <span class="channel-icon">💬</span>
+            <span class="channel-name">WhatsApp</span>
+            <span class="channel-count">{channelDist['whatsapp'] || 0}</span>
+          </div>
+          <div class="channel-pill telegram">
+            <span class="channel-icon">✈️</span>
+            <span class="channel-name">Telegram</span>
+            <span class="channel-count">{channelDist['telegram'] || 0}</span>
+          </div>
+          <div class="channel-pill pwa">
+            <span class="channel-icon">📱</span>
+            <span class="channel-name">PWA Web (Directo)</span>
+            <span class="channel-count">{channelDist['pwa'] || 0}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Horas Pico -->
+      <div class="metric-section card full-width">
+        <div class="section-header">
+          <span class="section-icon">⚡</span>
+          <h4>Horas Pico de Mayor Congestión (Top 3)</h4>
+        </div>
+        <p class="section-desc">Las tres horas del día que registran la mayor cantidad de reportes acumulados.</p>
+        
+        <div class="peaks-container">
+          {#each peakHours as peak, idx}
+            <div class="peak-item">
+              <span class="peak-rank">TOP {idx + 1}</span>
+              <span class="peak-time">{peak.hour.toString().padStart(2, '0')}:00 hs</span>
+              <span class="peak-count">{peak.count} reportes recibidos</span>
+            </div>
+          {:else}
+            <div class="no-data">Sin suficientes datos de reportes registrados para calcular picos.</div>
+          {/each}
+        </div>
+      </div>
+
+      <!-- 4. Gráfico de Distribución Horaria -->
+      <div class="metric-section card full-width">
+        <div class="section-header">
+          <span class="section-icon">📊</span>
+          <h4>Distribución Temporal de Reportes (0 - 23hs)</h4>
+        </div>
+        <p class="section-desc">Volumen de reportes recibidos por cada hora del día. Pase el cursor sobre las barras para ver detalles.</p>
+        
+        <div class="chart-container">
+          <div class="y-axis">
+            <span>{maxHourlyCount}</span>
+            <span>{Math.round(maxHourlyCount / 2)}</span>
+            <span>0</span>
+          </div>
+          <div class="chart-bars">
+            {#each hourlyDist as item}
+              <div class="chart-bar-wrapper">
+                <div 
+                  class="chart-bar" 
+                  style="height: {(item.count / maxHourlyCount) * 100}%"
+                  title="Hora {item.hour.toString().padStart(2, '0')}:00 hs - {item.count} reportes"
+                >
+                  {#if item.count > 0}
+                    <span class="bar-tooltip">{item.count}</span>
+                  {/if}
+                </div>
+                <span class="chart-label">{item.hour}h</span>
               </div>
-            {:else}
-              <div class="no-data">Sin reportes registrados hoy</div>
             {/each}
           </div>
         </div>
-
-        <!-- 4. Gráfico de Distribución Horaria -->
-        <div class="metric-section full-width">
-          <h4>Distribución de Reportes por Hora (0-23hs)</h4>
-          <div class="chart-container">
-            <div class="y-axis">
-              <span>{maxHourlyCount}</span>
-              <span>{Math.round(maxHourlyCount / 2)}</span>
-              <span>0</span>
-            </div>
-            <div class="chart-bars">
-              {#each hourlyDist as item}
-                <div class="chart-bar-wrapper">
-                  <div 
-                    class="chart-bar" 
-                    style="height: {(item.count / maxHourlyCount) * 100}%"
-                    title="Hora {item.hour.toString().padStart(2, '0')}:00 hs - {item.count} reportes"
-                  >
-                    {#if item.count > 0}
-                      <span class="bar-tooltip">{item.count}</span>
-                    {/if}
-                  </div>
-                  <span class="chart-label">{item.hour}</span>
-                </div>
-              {/each}
-            </div>
-          </div>
-        </div>
       </div>
-    {/if}
+    </div>
   {/if}
 </div>
 
 <style>
-  .metrics-container {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 16px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    transition: all 0.3s ease;
+  .metrics-page {
+    width: 100%;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    animation: fadeIn 0.4s ease-out;
   }
 
-  .metrics-header {
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .metrics-nav {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    cursor: pointer;
-    user-select: none;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 14px 20px;
+    backdrop-filter: blur(8px);
+    gap: 16px;
   }
 
-  .header-title {
+  @media (max-width: 768px) {
+    .metrics-nav {
+      flex-direction: column;
+      align-items: stretch;
+      text-align: center;
+    }
+  }
+
+  .nav-title {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 10px;
   }
 
+  .nav-title h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-main);
+    font-family: 'Outfit', sans-serif;
+  }
+
   .metrics-pulse {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     background-color: var(--accent-orange);
     border-radius: 50%;
     display: inline-block;
-    box-shadow: 0 0 8px var(--accent-orange);
+    box-shadow: 0 0 10px var(--accent-orange);
+    animation: pulse-ring 1.5s infinite;
   }
 
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+  .btn-back {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--card-border);
+    padding: 8px 16px;
+    border-radius: 8px;
+    color: var(--text-main);
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+
+  .btn-back:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.25);
   }
 
   .btn-refresh {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--card-border);
-    padding: 6px 10px;
+    background: linear-gradient(135deg, var(--accent-orange) 0%, #ff9500 100%);
+    border: none;
+    padding: 8px 16px;
     border-radius: 8px;
-    color: var(--text-main);
+    color: white;
+    font-weight: 600;
     cursor: pointer;
-    font-size: 14px;
-    transition: background 0.2s;
+    font-size: 13px;
+    box-shadow: 0 4px 12px var(--accent-glow);
+    transition: all 0.2s;
   }
 
   .btn-refresh:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .btn-toggle {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 6px;
-  }
-
-  .btn-toggle:hover {
-    color: var(--text-main);
-    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px var(--accent-glow);
   }
 
   .offline-warning {
-    margin-top: 15px;
-    padding: 12px;
+    padding: 24px;
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.2);
-    border-radius: 8px;
+    border-radius: 16px;
     color: var(--danger-red);
-    font-size: 13px;
+    font-size: 15px;
     text-align: center;
+    backdrop-filter: blur(8px);
+  }
+
+  .loading-state {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 16px;
   }
 
   .metrics-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 24px;
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid var(--card-border);
   }
 
-  @media (max-width: 768px) {
+  @media (max-width: 900px) {
     .metrics-grid {
       grid-template-columns: 1fr;
     }
@@ -250,39 +300,47 @@
   .metric-section {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.03);
-    border-radius: 12px;
-    padding: 16px;
+    gap: 16px;
   }
 
   .full-width {
     grid-column: 1 / -1;
   }
 
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--card-border);
+    padding-bottom: 12px;
+  }
+
+  .section-icon {
+    font-size: 20px;
+  }
+
   h4 {
-    font-size: 15px;
+    font-size: 17px;
     font-weight: 700;
     color: var(--text-main);
     font-family: 'Outfit', sans-serif;
   }
 
   .section-desc {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-muted);
-    margin-top: -6px;
+    line-height: 1.4;
   }
 
-  /* Progress Bar styling */
+  /* Engine Bar Container */
   .engine-bar-container {
-    height: 24px;
+    height: 32px;
     width: 100%;
     background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
+    border-radius: 16px;
     display: flex;
     overflow: hidden;
-    margin-top: 8px;
+    margin: 8px 0;
     border: 1px solid var(--card-border);
   }
 
@@ -290,10 +348,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     color: white;
-    transition: width 0.5s ease;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .engine-bar.gemini {
@@ -307,83 +365,134 @@
   }
 
   .bar-label {
+    padding: 0 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding: 0 6px;
   }
 
   .engine-legend {
     display: flex;
     gap: 16px;
-    font-size: 12px;
-    margin-top: 4px;
+    margin-top: 8px;
   }
 
-  .legend-item {
+  @media (max-width: 480px) {
+    .engine-legend {
+      flex-direction: column;
+    }
+  }
+
+  .legend-card {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--card-border);
+  }
+
+  .gemini-card {
+    background: rgba(59, 130, 246, 0.04);
+  }
+
+  .fallback-card {
+    background: rgba(245, 158, 11, 0.04);
+  }
+
+  .legend-header {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
   }
 
   .bullet {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
   }
 
-  .gemini-dot { background-color: #3b82f6; }
-  .fallback-dot { background-color: #f59e0b; }
+  .gemini-dot {
+    background-color: #3b82f6;
+    box-shadow: 0 0 8px #3b82f6;
+  }
+
+  .fallback-dot {
+    background-color: #f59e0b;
+    box-shadow: 0 0 8px #f59e0b;
+  }
+
+  .legend-value {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--text-main);
+    font-family: 'Outfit', sans-serif;
+  }
+
+  .legend-unit {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
 
   /* Channel Grid */
   .channels-grid {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin-top: 6px;
+    gap: 12px;
   }
 
   .channel-pill {
     display: flex;
     align-items: center;
-    padding: 10px 14px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.04);
+    padding: 14px 18px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--card-border);
+    transition: transform 0.2s, background-color 0.2s;
+  }
+
+  .channel-pill:hover {
+    transform: translateX(4px);
+    background: rgba(255, 255, 255, 0.05);
   }
 
   .channel-icon {
-    font-size: 16px;
-    margin-right: 10px;
-    width: 24px;
+    font-size: 20px;
+    margin-right: 14px;
+    width: 28px;
     text-align: center;
   }
 
   .channel-name {
     flex-grow: 1;
-    font-size: 13px;
-    font-weight: 500;
+    font-size: 14px;
+    font-weight: 600;
   }
 
   .channel-count {
-    font-weight: 700;
-    font-size: 14px;
-    padding: 2px 8px;
-    border-radius: 6px;
+    font-weight: 800;
+    font-size: 16px;
+    padding: 4px 12px;
+    border-radius: 8px;
     background: rgba(255, 255, 255, 0.08);
+    font-family: 'Outfit', sans-serif;
   }
 
   /* Peaks Container */
   .peaks-container {
     display: flex;
-    gap: 16px;
-    justify-content: space-around;
+    gap: 20px;
   }
 
-  @media (max-width: 580px) {
+  @media (max-width: 640px) {
     .peaks-container {
       flex-direction: column;
-      gap: 10px;
+      gap: 12px;
     }
   }
 
@@ -393,59 +502,58 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 14px;
-    border-radius: 12px;
-    background: rgba(255, 123, 0, 0.05);
+    padding: 20px;
+    border-radius: 14px;
+    background: rgba(255, 123, 0, 0.04);
     border: 1px solid rgba(255, 123, 0, 0.15);
     text-align: center;
+    transition: transform 0.2s;
+  }
+
+  .peak-item:hover {
+    transform: translateY(-2px);
   }
 
   .peak-rank {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 800;
     color: var(--accent-orange);
     text-transform: uppercase;
-    margin-bottom: 2px;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
   }
 
   .peak-time {
-    font-size: 16px;
-    font-weight: 700;
+    font-size: 22px;
+    font-weight: 800;
     color: var(--text-main);
+    font-family: 'Outfit', sans-serif;
   }
 
   .peak-count {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-top: 4px;
-  }
-
-  .no-data {
-    color: var(--text-muted);
     font-size: 13px;
-    text-align: center;
-    padding: 10px;
-    width: 100%;
+    color: var(--text-muted);
+    margin-top: 6px;
+    font-weight: 500;
   }
 
   /* Chart Layout */
   .chart-container {
     display: flex;
-    height: 180px;
-    gap: 12px;
-    margin-top: 10px;
-    padding: 10px 0;
+    height: 220px;
+    gap: 16px;
+    padding: 10px 0 20px 0;
   }
 
   .y-axis {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     text-align: right;
     width: 25px;
-    padding-bottom: 18px;
+    padding-bottom: 24px;
   }
 
   .chart-bars {
@@ -455,7 +563,7 @@
     align-items: flex-end;
     height: 100%;
     border-bottom: 1px solid var(--card-border);
-    padding-bottom: 4px;
+    padding-bottom: 6px;
   }
 
   .chart-bar-wrapper {
@@ -470,42 +578,43 @@
 
   .chart-bar {
     width: 60%;
-    max-width: 16px;
-    background: linear-gradient(180deg, var(--accent-orange) 0%, rgba(255, 123, 0, 0.2) 100%);
-    border-radius: 4px 4px 0 0;
-    transition: height 0.4s ease, background-color 0.2s;
+    max-width: 20px;
+    background: linear-gradient(180deg, var(--accent-orange) 0%, rgba(255, 123, 0, 0.15) 100%);
+    border-radius: 6px 6px 0 0;
+    transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
     min-height: 2px;
   }
 
   .chart-bar:hover {
-    background: linear-gradient(180deg, #ff9500 0%, rgba(255, 149, 0, 0.4) 100%);
-    box-shadow: 0 0 10px rgba(255, 123, 0, 0.4);
+    background: linear-gradient(180deg, #ff9500 0%, rgba(255, 149, 0, 0.3) 100%);
+    box-shadow: 0 0 12px rgba(255, 123, 0, 0.5);
   }
 
   .chart-label {
-    font-size: 9px;
+    font-size: 10px;
     color: var(--text-muted);
-    margin-top: 6px;
+    margin-top: 8px;
     position: absolute;
-    bottom: -16px;
+    bottom: -20px;
+    font-weight: 500;
   }
 
   /* Tooltip logic on hover */
   .bar-tooltip {
     display: none;
     position: absolute;
-    top: -24px;
+    top: -28px;
     background: #111827;
     border: 1px solid var(--card-border);
     color: white;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 3px 8px;
+    border-radius: 6px;
     white-space: nowrap;
     pointer-events: none;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     z-index: 10;
   }
 

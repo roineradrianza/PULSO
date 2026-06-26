@@ -16,11 +16,11 @@ public record PulsoPayload(
     [property: JsonPropertyName("longitude")] double? Longitude
 );
 
+// Ítem liviano para el mapa/lista: NO incluye raw_text (se trae bajo demanda).
 public record SituationItem(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("category")] string Category,
     [property: JsonPropertyName("severity")] string Severity,
-    [property: JsonPropertyName("raw_text")] string RawText,
     [property: JsonPropertyName("sector")] string Sector,
     [property: JsonPropertyName("latitude")] double? Latitude,
     [property: JsonPropertyName("longitude")] double? Longitude,
@@ -29,11 +29,27 @@ public record SituationItem(
     [property: JsonPropertyName("created_at")] DateTime CreatedAt
 );
 
+// Detalle pesado de un incidente (texto crudo), servido bajo demanda al abrir el popup.
+public record SituationDetail(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("raw_text")] string RawText
+);
+
+// Totales agregados para las tarjetas del dashboard (independientes del subconjunto cargado).
+public record SituationSummary(
+    [property: JsonPropertyName("total_incidents")] int TotalIncidents,
+    [property: JsonPropertyName("people_found")] int PeopleFound,
+    [property: JsonPropertyName("critical_sectors")] int CriticalSectors
+);
+
 public record LocationStat(
     [property: JsonPropertyName("sector")] string Sector,
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("incident_count")] int IncidentCount,
-    [property: JsonPropertyName("people_found")] List<string> PeopleFound
+    [property: JsonPropertyName("people_found")] List<string> PeopleFound,
+    // Centroide aproximado del sector para centrar el mapa sin depender de la lista de incidentes.
+    [property: JsonPropertyName("latitude")] double? Latitude,
+    [property: JsonPropertyName("longitude")] double? Longitude
 );
 
 public record MetricsHourItem(
