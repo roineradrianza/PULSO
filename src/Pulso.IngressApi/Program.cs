@@ -1,6 +1,11 @@
 using System.Net;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
+using OpenTelemetry;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Pulso.IngressApi.Endpoints;
 using Pulso.IngressApi.Serialization;
 using StackExchange.Redis;
@@ -69,6 +74,33 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0
         }));
 });
+
+// ── Observabilidad (OpenTelemetry → OTLP) ─────────────────────────────────────
+// Config-driven: solo EXPORTA si OTEL_EXPORTER_OTLP_ENDPOINT está definido (en prod
+// apunta al Aspire Dashboard por red privada). Sin esa variable (p. ej. en local) se
+// instrumenta pero no se exporta. El nombre del servicio sale de OTEL_SERVICE_NAME.
+var otelServiceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "pulso-api";
+
+builder.Logging.AddOpenTelemetry(logging =>
+{
+    logging.IncludeFormattedMessage = true;
+    logging.IncludeScopes = true;
+});
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(otelServiceName))
+    .WithTracing(tracing => tracing
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation())
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddRuntimeInstrumentation());
+
+if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+{
+    builder.Services.AddOpenTelemetry().UseOtlpExporter();
+}
 
 var app = builder.Build();
 

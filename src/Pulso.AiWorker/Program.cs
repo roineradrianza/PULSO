@@ -1,3 +1,8 @@
+using OpenTelemetry;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Pulso.AiWorker;
 using Pulso.AiWorker.Services;
 using StackExchange.Redis;
@@ -38,6 +43,31 @@ builder.Services.AddSingleton<IGeocodingService, GeocodingService>();
 
 // ── Worker en segundo plano ───────────────────────────────────────────────────
 builder.Services.AddHostedService<Worker>();
+
+// ── Observabilidad (OpenTelemetry → OTLP) ─────────────────────────────────────
+// Config-driven: solo EXPORTA si OTEL_EXPORTER_OTLP_ENDPOINT está definido (en prod
+// apunta al Aspire Dashboard por red privada). Sin esa variable se instrumenta pero
+// no se exporta. El nombre del servicio sale de OTEL_SERVICE_NAME.
+var otelServiceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "pulso-worker";
+
+builder.Logging.AddOpenTelemetry(logging =>
+{
+    logging.IncludeFormattedMessage = true;
+    logging.IncludeScopes = true;
+});
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(otelServiceName))
+    .WithTracing(tracing => tracing
+        .AddHttpClientInstrumentation())
+    .WithMetrics(metrics => metrics
+        .AddHttpClientInstrumentation()
+        .AddRuntimeInstrumentation());
+
+if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+{
+    builder.Services.AddOpenTelemetry().UseOtlpExporter();
+}
 
 var host = builder.Build();
 host.Run();
