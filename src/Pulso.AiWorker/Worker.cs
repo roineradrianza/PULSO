@@ -38,10 +38,10 @@ public class Worker : BackgroundService
     //  - Capa 2 (IA): el flag is_actionable_report cubre lo sutil (saludos largos, preguntas).
     private const int MinReportChars = 10;
     private const string ClarifyReportMessage =
-        "🤔 No me quedó claro qué quieres reportar. Cuéntame qué está ocurriendo y dónde.\n\n" +
+        "🤔 No quedó claro qué quieres reportar. Cuéntame qué está ocurriendo y dónde.\n\n" +
         "Por ejemplo:\n" +
-        "• \"Se agrietó una pared en mi casa en Catia\"\n" +
-        "• \"Hay una persona atrapada en un derrumbe en Petare\"";
+        "* \"Hay una persona atrapada en un derrumbe en Petare\"\n" +
+        "* Se necesitan insumos en catia en la calle XXXX";
     private const string WelcomeMessage =
         "👋 ¡Bienvenido a PULSO!\n" +
         "Reporta aquí emergencias del terremoto en Venezuela:  personas desaparecidas o encontradas a salvo. Daños en calles o casas,\n\n" +
