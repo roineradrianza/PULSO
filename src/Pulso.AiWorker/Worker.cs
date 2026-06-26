@@ -181,9 +181,9 @@ public class Worker : BackgroundService
                 await PublishIncidentSignalAsync(attachedId.Value);
                 var url = GetPlatformUrl();
                 await _outbound.SendTextAsync(payload,
-                    $"📍 Ubicación recibida. Tu reporte está completo.\n" +
-                    $"Puedes visualizarlo en el mapa interactivo en: {url}\n\n" +
-                    $"Gracias por ayudar.",
+                    $"📍 Ubicación recibida. Tu reporte está completo. ¡Gracias por ayudar!\n\n" +
+                    $"⏳ Puede tardar unos minutos en aparecer en el mapa.\n" +
+                    $"Cuando aparezca, lo verás aquí: {url}",
                     cancellationToken);
             }
             else
@@ -323,9 +323,9 @@ public class Worker : BackgroundService
             var place = string.IsNullOrWhiteSpace(triage.Sector) ? "" : $" en {triage.Sector}";
             var url = GetPlatformUrl();
             await _outbound.SendTextAsync(payload,
-                $"📍 Tu reporte quedó registrado{place}.\n" +
-                $"Puedes visualizarlo en el mapa interactivo en: {url}\n\n" +
-                $"Gracias por ayudar a tu comunidad.",
+                $"📍 Tu reporte quedó registrado{place}. ¡Gracias por ayudar a tu comunidad!\n\n" +
+                $"⏳ Puede tardar unos minutos en aparecer en el mapa.\n" +
+                $"Cuando aparezca, lo verás aquí: {url}",
                 cancellationToken);
         }
 
