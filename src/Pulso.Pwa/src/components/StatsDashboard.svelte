@@ -1,9 +1,11 @@
 <script>
-  import { situations, sectorStats } from '../lib/stores.js';
+  import { summary, situations, sectorStats } from '../lib/stores.js';
 
-  $: totalIncidents = $situations.length;
-  $: peopleFound = $situations.filter((s) => s.is_person_found).length;
-  $: criticalSectors = $sectorStats.filter((s) => s.status === 'CRITICAL').length;
+  // Preferir los totales agregados del servidor (reales aunque el mapa cargue un
+  // subconjunto); fallback al cálculo local mientras el resumen no haya llegado.
+  $: totalIncidents = $summary?.total_incidents ?? $situations.length;
+  $: peopleFound = $summary?.people_found ?? $situations.filter((s) => s.is_person_found).length;
+  $: criticalSectors = $summary?.critical_sectors ?? $sectorStats.filter((s) => s.status === 'CRITICAL').length;
 </script>
 
 <div class="stats-grid">

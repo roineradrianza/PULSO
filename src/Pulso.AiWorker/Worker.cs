@@ -122,6 +122,21 @@ public class Worker : BackgroundService
             await _incidentRepo.SaveTranscriptionAsync(
                 incidentId.Value, triage.Transcription, cancellationToken);
         }
+
+        // 7. Notificar a los clientes conectados (SSE) vía Redis pub/sub. Solo una
+        //    señal con el id; el cliente pedirá el delta por el endpoint saneado.
+        if (incidentId.HasValue)
+        {
+            try
+            {
+                await _redis.GetSubscriber().PublishAsync(
+                    RedisChannel.Literal("pulso:incidents:events"), incidentId.Value.ToString());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "No se pudo publicar la señal de incidente nuevo (no crítico).");
+            }
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

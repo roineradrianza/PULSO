@@ -25,5 +25,6 @@ var app = builder.Build();
 app.MapPulsoApiEndpoints();   // ingesta directa + consultas de situación
 app.MapTelegramWebhook();     // adaptador de Telegram
 app.MapWhatsAppWebhook();     // adaptador de WhatsApp
+app.MapStreamEndpoint();      // SSE en tiempo real (señal de incidentes nuevos)
 
 app.Run();

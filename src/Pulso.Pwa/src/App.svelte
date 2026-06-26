@@ -10,7 +10,8 @@
   import ReportForm from './components/ReportForm.svelte';
   import Toast from './components/Toast.svelte';
   import { online, pendingCount, showToast } from './lib/stores.js';
-  import { loadSituationsAndStats } from './lib/data.js';
+  import { loadInitial, loadDelta, loadFromCache } from './lib/data.js';
+  import { startRealtime, stopRealtime } from './lib/realtime.js';
   import { countQueued } from './lib/db.js';
 
   let pollTimer;
@@ -24,10 +25,21 @@
     pendingCount.set(await countQueued());
   }
 
+  function notifyNew(newCount) {
+    showToast(newCount === 1 ? '1 nuevo reporte recibido' : `${newCount} nuevos reportes recibidos`);
+  }
+
+  function relativeTime(ms) {
+    const mins = Math.round((Date.now() - ms) / 60000);
+    if (mins < 1) return 'hace un momento';
+    if (mins < 60) return `hace ${mins} min`;
+    return `hace ${Math.round(mins / 60)} h`;
+  }
+
   function handleOnline() {
     online.set(true);
     showToast('Conexión restablecida. Cargando datos y listo para sincronizar.');
-    loadSituationsAndStats();
+    loadInitial();
   }
 
   function handleOffline() {
@@ -35,23 +47,37 @@
     showToast('Sin conexión celular. Operando en modo offline.', true);
   }
 
-  onMount(() => {
+  // Polling de respaldo (por si el SSE está bloqueado por la red).
+  async function pollDelta() {
+    if (!navigator.onLine) return;
+    const newCount = await loadDelta();
+    if (newCount > 0) notifyNew(newCount);
+  }
+
+  onMount(async () => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('hashchange', updateViewFromHash);
 
     updateViewFromHash();
-    loadSituationsAndStats();
     refreshPending();
 
-    // Polling ligero para actualizar el mapa cada 15s si hay red.
-    pollTimer = setInterval(() => {
-      if (navigator.onLine) loadSituationsAndStats();
-    }, 15000);
+    // Mostrar de inmediato el último panorama guardado (incluso sin red).
+    const savedAt = await loadFromCache();
+    if (!navigator.onLine && savedAt) {
+      showToast(`Mostrando últimos datos guardados (${relativeTime(savedAt)}).`, true);
+    }
+
+    if (navigator.onLine) loadInitial();
+
+    // Tiempo real vía SSE (dispara delta al instante); el polling queda como respaldo.
+    startRealtime(notifyNew);
+    pollTimer = setInterval(pollDelta, 60000);
   });
 
   onDestroy(() => {
     clearInterval(pollTimer);
+    stopRealtime();
     window.removeEventListener('online', handleOnline);
     window.removeEventListener('offline', handleOffline);
     window.removeEventListener('hashchange', updateViewFromHash);

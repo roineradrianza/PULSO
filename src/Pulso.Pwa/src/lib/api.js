@@ -4,9 +4,27 @@
 // Esto elimina la necesidad de CORS. Se puede sobreescribir con VITE_API_BASE_URL.
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
-export async function fetchSituations() {
-  const res = await fetch(`${API_BASE_URL}/api/v1/pulso/situations`);
+// Situaciones livianas (sin raw_text). `since` (ISO) trae solo el delta; `limit` topa filas.
+export async function fetchSituations({ since = null, limit = 500 } = {}) {
+  const params = new URLSearchParams();
+  if (since) params.set('since', since);
+  if (limit) params.set('limit', String(limit));
+  const res = await fetch(`${API_BASE_URL}/api/v1/pulso/situations?${params.toString()}`);
   if (!res.ok) throw new Error('No se pudieron cargar las situaciones.');
+  return res.json();
+}
+
+// Detalle pesado (raw_text) de un incidente, bajo demanda al abrir el popup.
+export async function fetchSituationDetail(id) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/pulso/situations/${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error('No se pudo cargar el detalle del incidente.');
+  return res.json();
+}
+
+// Totales agregados para las tarjetas del dashboard.
+export async function fetchSummary() {
+  const res = await fetch(`${API_BASE_URL}/api/v1/pulso/summary`);
+  if (!res.ok) throw new Error('No se pudo cargar el resumen.');
   return res.json();
 }
 

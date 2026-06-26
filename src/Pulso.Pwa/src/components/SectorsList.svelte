@@ -20,12 +20,23 @@
   });
 
   function focusSector(stat) {
-    const points = $situations.filter(
-      (s) => s.sector === stat.sector && s.latitude && s.longitude
-    );
+    // Preferir el centroide del servidor (no depende del subconjunto cargado en el mapa).
+    let lat = stat.latitude;
+    let lng = stat.longitude;
 
-    if (points.length > 0) {
-      mapFocus.set({ lat: points[0].latitude, lng: points[0].longitude, zoom: 14 });
+    // Fallback: buscar un punto del sector en la lista en memoria.
+    if (lat == null || lng == null) {
+      const point = $situations.find(
+        (s) => s.sector === stat.sector && s.latitude && s.longitude
+      );
+      if (point) {
+        lat = point.latitude;
+        lng = point.longitude;
+      }
+    }
+
+    if (lat != null && lng != null) {
+      mapFocus.set({ lat, lng, zoom: 14 });
       showToast(`Enfocando mapa en sector ${stat.sector}`);
     } else {
       showToast(`El sector ${stat.sector} no tiene coordenadas registradas.`, true);

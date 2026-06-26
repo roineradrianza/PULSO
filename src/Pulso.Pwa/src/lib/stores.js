@@ -9,6 +9,9 @@ export const situations = writable([]);
 export const sectorStats = writable([]);
 export const systemMetrics = writable(null);
 
+// Totales agregados del servidor (independientes del subconjunto cargado en el mapa).
+export const summary = writable(null);
+
 // Cantidad de reportes en la cola offline.
 export const pendingCount = writable(0);
 
