@@ -110,11 +110,7 @@
       <div class="footer-right">
         <span>Desarrollado y mantenido de forma voluntaria.</span>
         <span>Para soporte, reportes de fallos o colaborar: <a href="mailto:pulso@roineradrianza.com">pulso@roineradrianza.com</a></span>
-        <div class="footer-links">
-          <a href="#/">Inicio</a>
-          <span class="bullet">•</span>
-          <a href="#/metrics">Métricas del Portal</a>
-        </div>
+
       </div>
     </div>
     <div class="footer-bottom">
@@ -170,21 +166,7 @@
     color: var(--success-green, #10b981);
     text-decoration: underline;
   }
-  .footer-links {
-    margin-top: 8px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .footer-links a {
-    color: var(--text-muted);
-  }
-  .footer-links a:hover {
-    color: var(--text-main);
-  }
-  .bullet {
-    color: rgba(255, 255, 255, 0.15);
-  }
+
   .footer-bottom {
     text-align: center;
     font-size: 11px;
