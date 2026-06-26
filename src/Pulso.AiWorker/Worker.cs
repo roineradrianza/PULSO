@@ -40,8 +40,8 @@ public class Worker : BackgroundService
     private const string ClarifyReportMessage =
         "🤔 No quedó claro qué quieres reportar. Cuéntame qué está ocurriendo y dónde.\n\n" +
         "Por ejemplo:\n" +
-        "* \"Hay una persona atrapada en un derrumbe en Petare\"\n" +
-        "* Se necesitan insumos en catia en la calle XXXX";
+        "• \"Hay una persona atrapada en un derrumbe en Petare\"\n" +
+        "• Se necesitan insumos en catia en la calle XXXX";
     private const string WelcomeMessage =
         "👋 ¡Bienvenido a PULSO!\n" +
         "Reporta aquí emergencias del terremoto en Venezuela:  personas desaparecidas o encontradas a salvo. Daños en calles o casas,\n\n" +
@@ -214,13 +214,19 @@ public class Worker : BackgroundService
         _logger.LogInformation("Sending report to AI model for categorization and structured triage...");
         var triage = await _geminiTriage.TriageAsync(payload.TextBody, media, cancellationToken);
 
-        // 2b. Capa 2 (IA): si el modelo determinó que NO es un reporte real, pedir aclaración
-        //     (solo por canales con respuesta saliente) y no crear incidente.
-        if (triage.IsActionableReport == false &&
+        // 2b. Capa 2 (IA): pedir aclaración SOLO si la IA lo marcó no accionable Y no extrajo
+        //     NINGUNA señal concreta (lugar o persona). Así un reporte real aunque sea terse
+        //     —p. ej. una persona avistada/identificada en un sector— nunca se descarta por error.
+        var hasConcreteSignal =
+            !string.IsNullOrWhiteSpace(triage.FoundPersonName)
+            || !string.IsNullOrWhiteSpace(triage.ExtractedAddress)
+            || !string.IsNullOrWhiteSpace(triage.Sector);
+
+        if (triage.IsActionableReport == false && !hasConcreteSignal &&
             (payload.Channel == "telegram" || payload.Channel == "whatsapp"))
         {
             activity?.SetTag("pulso.operation", "clarify-not-actionable");
-            _logger.LogInformation("AI flagged the message as non-actionable; asking the user to clarify.");
+            _logger.LogInformation("AI flagged the message as non-actionable with no concrete signal; asking the user to clarify.");
             await _outbound.SendTextAsync(payload, ClarifyReportMessage, cancellationToken);
             return;
         }
