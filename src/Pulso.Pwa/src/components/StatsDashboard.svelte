@@ -12,21 +12,21 @@
   <div class="stat-card">
     <div>
       <div class="stat-value">{totalIncidents}</div>
-      <div class="stat-label">Incidentes Registrados</div>
+      <div class="stat-label">Emergencias Reportadas</div>
     </div>
     <div class="stat-icon">⚠️</div>
   </div>
   <div class="stat-card">
     <div>
       <div class="stat-value" style="color: var(--success-green);">{peopleFound}</div>
-      <div class="stat-label">Personas Localizadas</div>
+      <div class="stat-label">Personas Encontradas (A Salvo)</div>
     </div>
     <div class="stat-icon">✅</div>
   </div>
   <div class="stat-card">
     <div>
       <div class="stat-value" style="color: var(--danger-red);">{criticalSectors}</div>
-      <div class="stat-label">Sectores Afectados</div>
+      <div class="stat-label">Sectores en Alerta Crítica</div>
     </div>
     <div class="stat-icon">🚨</div>
   </div>

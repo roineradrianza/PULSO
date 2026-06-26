@@ -266,7 +266,7 @@ public static class PulsoApiEndpoints
 
                 // 3. Distribución por Hora (0-23)
                 var hourlyQuery = @"
-                    SELECT (EXTRACT(HOUR FROM created_at))::integer as hr, COUNT(*)::integer as count 
+                    SELECT (EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Caracas'))::integer as hr, COUNT(*)::integer as count 
                     FROM public.incidents 
                     WHERE status != 'DUPLICATE'
                     GROUP BY hr 
@@ -287,7 +287,7 @@ public static class PulsoApiEndpoints
 
                 // 4. Horas Pico (Top 3)
                 var peakQuery = @"
-                    SELECT (EXTRACT(HOUR FROM created_at))::integer as hr, COUNT(*)::integer as count 
+                    SELECT (EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Caracas'))::integer as hr, COUNT(*)::integer as count 
                     FROM public.incidents 
                     WHERE status != 'DUPLICATE'
                     GROUP BY hr 

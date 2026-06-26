@@ -60,7 +60,7 @@
     const place = document.createElement('div');
     place.textContent = `Lugar: ${sit.sector || 'Desconocido'}`;
     const date = document.createElement('div');
-    date.textContent = `Fecha: ${new Date(sit.created_at).toLocaleString()}`;
+    date.textContent = `Fecha: ${new Date(sit.created_at).toLocaleString('es-VE', { timeZone: 'America/Caracas' })}`;
     meta.append(place, date);
     if (sit.found_person_name) {
       const name = document.createElement('div');

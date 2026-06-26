@@ -11,7 +11,7 @@
   <div class="card-header" on:click={toggle} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && toggle()}>
     <div class="header-title">
       <span class="info-icon">ℹ️</span>
-      <h3>Sobre PULSO y Uso de Datos</h3>
+      <h3>¿Cómo funciona este portal y qué hacemos con sus datos?</h3>
     </div>
     <button class="toggle-btn" aria-label="Toggle details">
       {isOpen ? '▲ Ocultar' : '▼ Mostrar'}
@@ -22,18 +22,18 @@
     <div class="card-content" transition:slide={{ duration: 300 }}>
       <div class="info-section">
         <p class="about-text">
-          <strong>PULSO</strong> es un portal ciudadano de visibilidad y mapeo de reportes activado con motivo del <strong>terremoto ocurrido el 24 de junio de 2026</strong> en Venezuela. Permite registrar daños, incidentes y personas localizadas a nivel nacional, funcionando en línea y en zonas sin cobertura celular (offline-first) para ayudar a centralizar información de interés público.
+          <strong>PULSO (Plataforma Unificada de Lectura y Seguimiento Offline)</strong> es una cartelera pública digital creada tras el <strong>terremoto ocurrido el 24 de junio de 2026</strong> en Venezuela. Sirve para que cualquier persona informe sobre daños materiales en calles o casas, y avise si localizó a un vecino o familiar. Funciona incluso si no tiene señal o internet en su celular.
         </p>
       </div>
       
       <div class="divider"></div>
 
       <div class="disclaimer-section">
-        <h4 class="disclaimer-title">⚠️ Descargo de Responsabilidad y Privacidad (PII)</h4>
+        <h4 class="disclaimer-title">⚠️ Aviso importante sobre su seguridad y privacidad</h4>
         <ul class="disclaimer-list">
-          <li><strong>Protección de Datos:</strong> La información personal ingresada (nombres, cédulas, números telefónicos y geolocalización) es altamente sensible. Se procesa de forma segura mediante conexiones cifradas (TLS/SSL) y almacenamiento protegido para evitar riesgos físicos o persecuciones.</li>
-          <li><strong>Uso Responsable:</strong> Esta plataforma se destina exclusivamente a coordinar labores de búsqueda, salvamento y ayuda. Queda estrictamente prohibido ingresar reportes falsos, información malintencionada o coordenadas fuera del territorio nacional.</li>
-          <li><strong>Carácter de la Información:</strong> Al enviar un reporte, usted acepta que esta información estará disponible de manera pública y abierta para cualquier persona o entidad interesada en colaborar (organizaciones humanitarias, voluntarios o familiares). No existe garantía alguna de que las brigadas de auxilio oficiales vayan a recibir o actuar directamente sobre estos datos.</li>
+          <li><strong>Seguridad de sus datos:</strong> Sus datos telefónicos, de contacto y ubicación están protegidos y viajan encriptados de forma segura por internet para evitar filtraciones o riesgos.</li>
+          <li><strong>Uso correcto:</strong> Por favor, reporte solo información verdadera sobre la emergencia. Queda prohibido enviar reportes falsos o ubicaciones fuera de Venezuela.</li>
+          <li><strong>Información pública y voluntaria:</strong> Al enviar un reporte, la información se mostrará en el mapa para que brigadas de voluntarios, familiares y vecinos puedan colaborar. Tenga en cuenta que este es un portal de ayuda ciudadana y no garantiza la llegada de bomberos o autoridades oficiales.</li>
         </ul>
       </div>
     </div>

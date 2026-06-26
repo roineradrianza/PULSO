@@ -15,12 +15,12 @@
   let lat = null;
   let lng = null;
   let accuracy = null;
-  let gpsStatus = 'Sin datos';
-  let gpsStatusColor = 'var(--accent-orange)';
+  let gpsStatus = '🔴 Ubicación no obtenida';
+  let gpsStatusColor = 'var(--danger-red)';
   let gpsLoading = false;
 
   async function captureGps() {
-    gpsStatus = 'Obteniendo señal...';
+    gpsStatus = '🟡 Buscando ubicación por satélite...';
     gpsStatusColor = 'var(--warning-amber)';
     gpsLoading = true;
     try {
@@ -28,11 +28,11 @@
       lat = coords.latitude;
       lng = coords.longitude;
       accuracy = coords.accuracy;
-      gpsStatus = 'Señal GPS Activa';
+      gpsStatus = '🟢 Ubicación detectada con éxito';
       gpsStatusColor = 'var(--success-green)';
       showToast('Ubicación capturada con éxito.');
     } catch (error) {
-      gpsStatus = 'Error de GPS';
+      gpsStatus = '🔴 No se pudo obtener la ubicación';
       gpsStatusColor = 'var(--danger-red)';
       showToast(`Error al leer GPS: ${error.message}`, true);
     } finally {
@@ -46,8 +46,8 @@
     lat = null;
     lng = null;
     accuracy = null;
-    gpsStatus = 'Sin datos';
-    gpsStatusColor = 'var(--accent-orange)';
+    gpsStatus = '🔴 Ubicación no obtenida';
+    gpsStatusColor = 'var(--danger-red)';
   }
 
   async function submit() {
@@ -89,53 +89,62 @@
 </script>
 
 <div class="card" style="max-width: 600px; margin: 0 auto; width: 100%;">
-  <h2 style="font-size: 20px; font-weight: 700;">Informar Situación o Persona Localizada</h2>
+  <h2 style="font-size: 20px; font-weight: 700;">Crear un Reporte de Ayuda</h2>
   <p style="color: var(--text-muted); font-size: 13px; margin-top: -8px;">
-    Cualquier ciudadano común puede reportar. Si no tienes conexión, tu reporte se encolará y podrás
-    sincronizarlo después.
+    Cualquier persona puede informar sobre una emergencia. Si no tiene señal o internet, el reporte se guardará en su teléfono de forma segura.
   </p>
 
   <form on:submit|preventDefault={submit}>
     <div class="form-group" style="margin-bottom: 12px;">
-      <label for="phone">Tu Teléfono de Contacto</label>
-      <input id="phone" type="tel" placeholder="Ej: 584121234567" required bind:value={phone} />
+      <label for="phone">Su número de teléfono</label>
+      <input id="phone" type="tel" placeholder="Ejemplo: 0412-1234567" required bind:value={phone} />
     </div>
 
     <div class="form-group" style="margin-bottom: 12px;">
-      <label for="declared-location">Dirección escrita / Referencias del Lugar</label>
+      <label for="declared-location">¿Dónde ocurrió? (Dirección o puntos de referencia)</label>
       <input
         id="declared-location"
         type="text"
-        placeholder="Ej. Avenida Luis Roche de Altamira, frente a la plaza"
+        placeholder="Ejemplo: Avenida Francisco de Miranda, frente al Metro de Altamira"
         required
         bind:value={declaredLocation}
       />
     </div>
 
     <div class="form-group" style="margin-bottom: 12px;">
-      <label for="text-body">¿Qué está ocurriendo o a quién localizaste?</label>
+      <label for="text-body">¿Qué pasó o a quién encontró?</label>
       <textarea
         id="text-body"
         rows="4"
-        placeholder="Describe los daños, escapes de gas, o detalla si localizaste a alguien (escribe su Nombre y Cédula si los tienes)..."
+        placeholder="Describa la situación: si hay daños materiales, escapes de agua o gas, heridos, o escriba el nombre completo y la cédula de la persona que encontró a salvo."
         required
         bind:value={reportDetails}
       ></textarea>
     </div>
 
     <div class="form-group" style="margin-bottom: 16px;">
-      <label for="btn-gps">Ubicación de Hardware (GPS)</label>
-      <div class="gps-display" style="margin-top: 4px; margin-bottom: 8px;">
-        <div>Estado GPS: <span class="gps-status" style="color: {gpsStatusColor};">{gpsStatus}</span></div>
-        <div>Latitud: <span>{lat !== null ? lat.toFixed(6) : '-'}</span></div>
-        <div>Longitud: <span>{lng !== null ? lng.toFixed(6) : '-'}</span></div>
-        <div>Precisión: <span>{accuracy !== null ? accuracy.toFixed(1) + ' m' : '-'}</span></div>
+      <label for="btn-gps">Ubicación por satélite (GPS)</label>
+      <div class="gps-display" style="margin-top: 4px; margin-bottom: 8px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--card-border);">
+        <div style="font-weight: 600; display: flex; align-items: center; gap: 8px;">
+          <span>Estado:</span>
+          <span class="gps-status" style="color: {gpsStatusColor}; font-weight: 700;">{gpsStatus}</span>
+        </div>
+        {#if lat !== null && lng !== null}
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px; display: flex; align-items: center; gap: 12px; line-height: 1;">
+            <span style="display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background-color: var(--success-green); display: inline-block;"></span>
+              Ubicación obtenida
+            </span>
+            <span style="color: rgba(255, 255, 255, 0.15);">|</span>
+            <span>Precisión: {accuracy !== null ? accuracy.toFixed(0) + ' metros' : '-'}</span>
+          </div>
+        {/if}
       </div>
       <button id="btn-gps" type="button" class="btn-secondary" style="padding: 10px;" on:click={captureGps} disabled={gpsLoading}>
-        Capturar Ubicación Satelital
+        Obtener mi ubicación actual
       </button>
     </div>
 
-    <button type="submit" class="btn-primary" style="width: 100%;">Enviar Reporte a la Red</button>
+    <button type="submit" class="btn-primary" style="width: 100%;">Enviar reporte de emergencia</button>
   </form>
 </div>

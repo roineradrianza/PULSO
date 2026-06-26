@@ -31,10 +31,10 @@
     dispatch('synced');
 
     if (failCount === 0) {
-      showToast(`Sincronización exitosa: ${successCount} reportes transmitidos.`);
+      showToast(`¡Listo! Se enviaron con éxito ${successCount} reportes.`);
       setTimeout(loadSituationsAndStats, 3000);
     } else {
-      showToast(`Sincronizados ${successCount} reportes, ${failCount} fallaron.`, true);
+      showToast(`Se enviaron ${successCount} reportes, pero ${failCount} fallaron. Intente de nuevo en una zona con mejor señal.`, true);
     }
   }
 </script>
@@ -42,8 +42,10 @@
 {#if $pendingCount > 0}
   <div class="card sync-card">
     <div class="sync-info">
-      <div class="sync-title">Reportes guardados localmente</div>
-      <div class="sync-count">{$pendingCount} reportes encolados listos para transmitir</div>
+      <div class="sync-title">Reportes guardados en su teléfono</div>
+      <div class="sync-count">
+        Tiene {$pendingCount} reporte{$pendingCount > 1 ? 's' : ''} que no se pudo{$pendingCount > 1 ? 'n' : ''} enviar por falta de señal. Toque el botón para enviarlos ahora.
+      </div>
     </div>
     <button
       class="btn-primary"
@@ -52,9 +54,9 @@
       disabled={syncing}
     >
       {#if syncing}
-        <span class="spinner"></span> Sincronizando...
+        <span class="spinner"></span> Enviando...
       {:else}
-        Sincronizar
+        Enviar reportes pendientes
       {/if}
     </button>
   </div>

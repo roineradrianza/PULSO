@@ -42,15 +42,25 @@
       showToast(`El sector ${stat.sector} no tiene coordenadas registradas.`, true);
     }
   }
+
+  function translateStatus(status) {
+    switch (status) {
+      case 'CRITICAL': return 'CRÍTICO';
+      case 'HIGH': return 'ALTO';
+      case 'MEDIUM': return 'MEDIO';
+      case 'LOW': return 'BAJO';
+      default: return status;
+    }
+  }
 </script>
 
 <div class="card" style="padding: 20px;">
   <div class="sector-search-container">
-    <h2 style="font-size: 18px; font-weight: 700;">Situación y Personas Localizadas por Sector</h2>
+    <h2 style="font-size: 18px; font-weight: 700;">Lista de Sectores y Personas Encontradas</h2>
     <input
       type="text"
       class="sector-search-input"
-      placeholder="Buscar sector o persona (ej. Altamira, Frank)..."
+      placeholder="Escriba un sector o nombre (ej: Altamira, Pedro)..."
       bind:value={query}
     />
   </div>
@@ -58,7 +68,7 @@
   <div class="sectors-list">
     {#if filtered.length === 0}
       <p style="color: var(--text-muted); font-size: 13px; text-align: center; margin-top: 20px;">
-        No se encontraron sectores coincidentes.
+        No encontramos ningún sector o persona con ese nombre.
       </p>
     {:else}
       {#each filtered as stat (stat.sector)}
@@ -76,7 +86,7 @@
             </div>
             {#if stat.people_found.length > 0}
               <div class="sector-people-container">
-                <span class="people-label">Localizados ({stat.people_found.length}):</span>
+                <span class="people-label">Encontrados a salvo ({stat.people_found.length}):</span>
                 <div class="people-badges">
                   {#each stat.people_found as person}
                     <span class="person-badge" title={person}>{person}</span>
@@ -87,7 +97,7 @@
           </div>
           <div class="sector-meta">
             <span class="sector-count">{stat.incident_count} reportes</span>
-            <span style="font-size: 10px; font-weight: bold; color: var(--text-muted);">{stat.status}</span>
+            <span style="font-size: 10px; font-weight: bold; color: var(--text-muted);">{translateStatus(stat.status)}</span>
           </div>
         </div>
       {/each}

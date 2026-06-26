@@ -5,6 +5,6 @@
 <header>
   <div class="brand">PULSO</div>
   <div class="network-badge" class:online={$online}>
-    <span>{$online ? 'PORTAL CONECTADO' : 'SITUACIÓN SINCRONIZADA LOCAL / OFFLINE'}</span>
+    <span>{$online ? 'Internet Activo (En Línea)' : 'Sin Internet (Trabajando sin conexión)'}</span>
   </div>
 </header>
