@@ -37,18 +37,32 @@ function track(item) {
   if (!watermark || item.created_at > watermark) watermark = item.created_at;
 }
 
-// Refresca los agregados livianos (sectores, resumen, métricas) en paralelo.
+// Refresca los agregados livianos (sectores, resumen) en paralelo.
+// NOTA: las métricas del sistema NO se cargan aquí; solo se piden cuando el
+// usuario entra a la vista de métricas (ver loadMetrics), para no golpear
+// /metrics en cada poll de la vista principal.
 async function refreshAggregates(date = null) {
-  const [stats, summ, metrics] = await Promise.all([
+  const [stats, summ] = await Promise.all([
     fetchSectorStats(date),
-    fetchSummary(),
-    fetchSystemMetrics()
+    fetchSummary()
   ]);
   lastStats = stats;
   lastSummary = summ;
   sectorStats.set(stats);
   summary.set(summ);
-  systemMetrics.set(metrics);
+}
+
+// Carga las métricas del sistema bajo demanda (solo en la vista #/metrics).
+export async function loadMetrics() {
+  if (!navigator.onLine) return;
+  try {
+    const metrics = await fetchSystemMetrics();
+    systemMetrics.set(metrics);
+    noteServerOk();
+  } catch (err) {
+    console.error('Error al cargar las métricas del sistema:', err);
+    noteServerIssue();
+  }
 }
 
 // Guarda el panorama actual para consulta offline (best-effort, no bloquea).

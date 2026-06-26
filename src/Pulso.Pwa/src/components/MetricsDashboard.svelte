@@ -1,9 +1,13 @@
 <script>
+  import { onMount } from 'svelte';
   import { systemMetrics, online } from '../lib/stores.js';
-  import { loadSituationsAndStats } from '../lib/data.js';
+  import { loadMetrics } from '../lib/data.js';
+
+  // Las métricas solo se piden al entrar a esta vista (no en el poll general).
+  onMount(loadMetrics);
 
   async function handleRefresh() {
-    await loadSituationsAndStats();
+    await loadMetrics();
   }
 
   function goBack() {
