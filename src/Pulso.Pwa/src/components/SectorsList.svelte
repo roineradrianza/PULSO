@@ -4,7 +4,8 @@
   let query = '';
 
   $: filtered = $sectorStats.filter((stat) =>
-    stat.sector.toLowerCase().includes(query.toLowerCase().trim())
+    stat.sector.toLowerCase().includes(query.toLowerCase().trim()) ||
+    stat.people_found.some((p) => p.toLowerCase().includes(query.toLowerCase().trim()))
   );
 
   function focusSector(stat) {
@@ -23,11 +24,11 @@
 
 <div class="card" style="padding: 20px;">
   <div class="sector-search-container">
-    <h2 style="font-size: 18px; font-weight: 700;">Estado de la Situación por Sector</h2>
+    <h2 style="font-size: 18px; font-weight: 700;">Situación y Personas Localizadas por Sector</h2>
     <input
       type="text"
       class="sector-search-input"
-      placeholder="Buscar zona (ej. Altamira, Petare)..."
+      placeholder="Buscar sector o persona (ej. Altamira, Frank)..."
       bind:value={query}
     />
   </div>
