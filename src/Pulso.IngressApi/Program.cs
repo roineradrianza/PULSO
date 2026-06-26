@@ -1,3 +1,6 @@
+using System.Net;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.HttpOverrides;
 using Pulso.IngressApi.Endpoints;
 using Pulso.IngressApi.Serialization;
 using StackExchange.Redis;
@@ -15,7 +18,66 @@ var redisConnectionString = builder.Configuration.GetConnectionString("UpstashRe
     ?? throw new InvalidOperationException("Falta la variable de configuración UpstashRedis.");
 builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));
 
+// IP real del cliente: la API corre detrás de Caddy en el MISMO host, así que sin
+// esto toda petición se vería como loopback y el rate limit por IP sería inútil.
+// Confiamos en X-Forwarded-For SOLO del proxy loopback (Caddy local).
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownProxies.Clear();
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Add(IPAddress.Loopback);      // 127.0.0.1
+    options.KnownProxies.Add(IPAddress.IPv6Loopback);  // ::1
+});
+
+// Rate limiting por IP (capa A). Límites generosos: atrapan abuso evidente sin
+// suprimir picos legítimos de reporte durante una emergencia.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = (context, _) =>
+    {
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        return ValueTask.CompletedTask;
+    };
+
+    // Ingesta directa (canal PWA / clientes directos): escribe y dispara IA.
+    options.AddPolicy("ingest", httpContext =>
+        RateLimitPartition.GetSlidingWindowLimiter(ClientIp(httpContext), _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            SegmentsPerWindow = 6,
+            QueueLimit = 0
+        }));
+
+    // Lecturas (situaciones, resumen, sectores, métricas): proteger de scraping/DoS.
+    options.AddPolicy("reads", httpContext =>
+        RateLimitPartition.GetSlidingWindowLimiter(ClientIp(httpContext), _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = 60,
+            Window = TimeSpan.FromMinutes(1),
+            SegmentsPerWindow = 6,
+            QueueLimit = 0
+        }));
+
+    // SSE: conexiones long-lived; limitar las concurrentes por IP.
+    options.AddPolicy("sse", httpContext =>
+        RateLimitPartition.GetConcurrencyLimiter(ClientIp(httpContext), _ => new ConcurrencyLimiterOptions
+        {
+            PermitLimit = 5,
+            QueueLimit = 0
+        }));
+});
+
 var app = builder.Build();
+
+// Debe ir antes del rate limiter para que la partición use la IP real del cliente.
+app.UseForwardedHeaders();
+app.UseRateLimiter();
+
+// Partición de rate limit por IP del cliente (ya reescrita por ForwardedHeaders).
+static string ClientIp(HttpContext ctx) => ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
 // La PWA y la API se sirven bajo el MISMO ORIGEN (reverse proxy Caddy en producción,
 // proxy de Vite en desarrollo), por lo que CORS no es necesario. Si en el futuro se

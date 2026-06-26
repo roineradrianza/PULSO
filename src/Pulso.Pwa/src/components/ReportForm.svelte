@@ -73,10 +73,30 @@
         resetForm();
         setTimeout(loadSituationsAndStats, 3000);
       } catch (error) {
+        // Distinguir el tipo de fallo: no mentir al usuario ni reintentar en vano.
+        const status = error?.status;
+
+        if (status === 400) {
+          // Datos inválidos: encolar fallaría siempre. Conservar el formulario para corregir.
+          showToast('No pudimos enviar el reporte. Revisa los datos e inténtalo de nuevo.', true);
+          return;
+        }
+
+        // Resto de casos: guardar local para que el reporte NUNCA se pierda.
         console.warn('Fallo el envío directo, guardando offline:', error);
         await saveIncidentLocal(incident);
         dispatch('queued');
-        showToast('Problema de red. Guardado en cola local.', true);
+
+        if (status === 429) {
+          showToast('Estamos recibiendo muchos reportes ahora mismo. Guardamos el tuyo y lo reenviaremos en unos minutos.', true);
+        } else if (status === 502 || status === 503 || status === 504) {
+          showToast('El servidor no está disponible por un momento. Tu reporte quedó guardado y se enviará al restablecerse.', true);
+        } else if (status === undefined) {
+          // fetch lanzó sin respuesta: sin conexión / servidor inalcanzable.
+          showToast('Sin conexión. Tu reporte quedó guardado en tu teléfono.', true);
+        } else {
+          showToast('Ocurrió un error en el servidor. Guardamos tu reporte para reintentar.', true);
+        }
         resetForm();
       }
     } else {

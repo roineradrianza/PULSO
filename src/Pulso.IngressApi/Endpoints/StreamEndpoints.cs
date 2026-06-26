@@ -54,6 +54,6 @@ public static class StreamEndpoints
             {
                 await queue.UnsubscribeAsync();
             }
-        });
+        }).RequireRateLimiting("sse");
     }
 }

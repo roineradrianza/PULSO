@@ -31,11 +31,19 @@ public static class PulsoApiEndpoints
                 return Results.BadRequest(new { error = "Las coordenadas geográficas se encuentran fuera del territorio nacional (Venezuela)." });
             }
 
-            await WebhookSupport.EnqueueAsync(redisConn.GetDatabase(), payload);
+            var db = redisConn.GetDatabase();
+
+            // Capa B: límite por remitente (si el payload trae teléfono/contacto).
+            if (await WebhookSupport.IsSenderRateLimitedAsync(db, payload.Channel, payload.Phone))
+            {
+                return Results.StatusCode(StatusCodes.Status429TooManyRequests);
+            }
+
+            await WebhookSupport.EnqueueAsync(db, payload);
 
             // Retorno inmediato 200 OK para liberar el webhook del canal.
             return Results.Ok(new { status = "Queued", messageId = payload.MessageId });
-        });
+        }).RequireRateLimiting("ingest");
 
         // Situaciones georreferenciadas (payload LIVIANO, sin raw_text).
         // ?since=<ISO8601> -> carga incremental (delta); ?limit=N -> tope de filas; ?date=YYYY-MM-DD -> filtrar por día.
@@ -109,7 +117,7 @@ public static class PulsoApiEndpoints
             }
 
             return Results.Ok(list);
-        });
+        }).RequireRateLimiting("reads");
 
         // Detalle pesado de un incidente (raw_text), servido bajo demanda al abrir el popup.
         app.MapGet("/api/v1/pulso/situations/{id}", async (string id, IConfiguration config) =>
@@ -139,7 +147,7 @@ public static class PulsoApiEndpoints
                 app.Logger.LogError(ex, "Error occurred while fetching situation detail.");
                 return Results.Problem("An error occurred while processing your request.");
             }
-        });
+        }).RequireRateLimiting("reads");
 
         // Totales agregados para las tarjetas del dashboard (independientes del subconjunto cargado).
         app.MapGet("/api/v1/pulso/summary", async (IConfiguration config) =>
@@ -173,7 +181,7 @@ public static class PulsoApiEndpoints
                 app.Logger.LogError(ex, "Error occurred while fetching summary.");
                 return Results.Problem("An error occurred while processing your request.");
             }
-        });
+        }).RequireRateLimiting("reads");
 
         // Obtener agregación de estatus consolidado por sector.
         app.MapGet("/api/v1/pulso/locations/stats", async (HttpRequest request, IConfiguration config) =>
@@ -234,7 +242,7 @@ public static class PulsoApiEndpoints
             }
 
             return Results.Ok(list);
-        });
+        }).RequireRateLimiting("reads");
 
         // Obtener métricas y analíticas del sistema
         app.MapGet("/api/v1/pulso/metrics", async (IConfiguration config) =>
@@ -326,7 +334,7 @@ public static class PulsoApiEndpoints
             }
 
             return Results.Ok(new MetricsResponse(engineStats, channelStats, hourlyDistribution, peakHours));
-        });
+        }).RequireRateLimiting("reads");
     }
 
     private static (DateTime utcStart, DateTime utcEnd) GetUtcDateRange(string? dateStr)

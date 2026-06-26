@@ -85,7 +85,17 @@ public static class TelegramWebhookEndpoints
                 Longitude: lng
             );
 
-            await WebhookSupport.EnqueueAsync(redisConn.GetDatabase(), payload);
+            var db = redisConn.GetDatabase();
+
+            // Capa B: límite por remitente (chat id). Si excede, se descarta el mensaje
+            // pero SIEMPRE se responde 200 para que Telegram no reintente ni deshabilite el webhook.
+            if (await WebhookSupport.IsSenderRateLimitedAsync(db, "telegram", payload.Phone))
+            {
+                app.Logger.LogWarning("Remitente de Telegram excedió el límite; se descarta el mensaje. chat={chat}", msg.Chat.Id);
+                return Results.Ok();
+            }
+
+            await WebhookSupport.EnqueueAsync(db, payload);
 
             return Results.Ok();
         });

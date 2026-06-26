@@ -119,6 +119,14 @@ public static class WhatsAppWebhookEndpoints
                             Longitude: lng
                         );
 
+                        // Capa B: límite por remitente (wa_id). Si excede, se descarta el mensaje;
+                        // el webhook igual responde 200 al final para no provocar reintentos de Meta.
+                        if (await WebhookSupport.IsSenderRateLimitedAsync(db, "whatsapp", payload.Phone))
+                        {
+                            app.Logger.LogWarning("Remitente de WhatsApp excedió el límite; se descarta el mensaje. from={from}", m.From);
+                            continue;
+                        }
+
                         await WebhookSupport.EnqueueAsync(db, payload);
                     }
                 }

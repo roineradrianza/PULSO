@@ -4,6 +4,27 @@
 // Esto elimina la necesidad de CORS. Se puede sobreescribir con VITE_API_BASE_URL.
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
+// Error de API que conserva el código de estado HTTP (y Retry-After si viene), para
+// que la UI pueda distinguir 429 (límite), 502/503/504 (servidor caído), 400 (datos
+// inválidos), etc., y mostrar el mensaje correcto. Un fallo de red de fetch (sin
+// respuesta) NO produce un ApiError: se propaga como TypeError, que la UI trata como
+// "sin conexión".
+export class ApiError extends Error {
+  constructor(status, message, retryAfter = null) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.retryAfter = retryAfter;
+  }
+}
+
+function ensureOk(res, fallbackMsg) {
+  if (res.ok) return res;
+  const retryAfterRaw = res.headers.get('Retry-After');
+  const retryAfter = retryAfterRaw ? Number(retryAfterRaw) : null;
+  throw new ApiError(res.status, fallbackMsg, Number.isFinite(retryAfter) ? retryAfter : null);
+}
+
 // Situaciones livianas (sin raw_text). `since` (ISO) trae solo el delta; `limit` topa filas.
 export async function fetchSituations({ since = null, limit = 500, date = null } = {}) {
   const params = new URLSearchParams();
@@ -11,37 +32,36 @@ export async function fetchSituations({ since = null, limit = 500, date = null }
   if (limit) params.set('limit', String(limit));
   if (date) params.set('date', date);
   const res = await fetch(`${API_BASE_URL}/api/v1/pulso/situations?${params.toString()}`);
-  if (!res.ok) throw new Error('No se pudieron cargar las situaciones.');
+  ensureOk(res, 'No se pudieron cargar las situaciones.');
   return res.json();
 }
 
 // Detalle pesado (raw_text) de un incidente, bajo demanda al abrir el popup.
 export async function fetchSituationDetail(id) {
   const res = await fetch(`${API_BASE_URL}/api/v1/pulso/situations/${encodeURIComponent(id)}`);
-  if (!res.ok) throw new Error('No se pudo cargar el detalle del incidente.');
+  ensureOk(res, 'No se pudo cargar el detalle del incidente.');
   return res.json();
 }
 
 // Totales agregados para las tarjetas del dashboard.
 export async function fetchSummary() {
   const res = await fetch(`${API_BASE_URL}/api/v1/pulso/summary`);
-  if (!res.ok) throw new Error('No se pudo cargar el resumen.');
+  ensureOk(res, 'No se pudo cargar el resumen.');
   return res.json();
 }
 
 export async function fetchSectorStats(date = null) {
   const url = date ? `${API_BASE_URL}/api/v1/pulso/locations/stats?date=${encodeURIComponent(date)}` : `${API_BASE_URL}/api/v1/pulso/locations/stats`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error('No se pudieron cargar las estadísticas por sector.');
+  ensureOk(res, 'No se pudieron cargar las estadísticas por sector.');
   return res.json();
 }
 
 export async function fetchSystemMetrics() {
   const res = await fetch(`${API_BASE_URL}/api/v1/pulso/metrics`);
-  if (!res.ok) throw new Error('No se pudieron cargar las métricas del sistema.');
+  ensureOk(res, 'No se pudieron cargar las métricas del sistema.');
   return res.json();
 }
-
 
 export async function sendToApi(incident) {
   const res = await fetch(`${API_BASE_URL}/api/v1/pulso/ingest`, {
@@ -49,6 +69,6 @@ export async function sendToApi(incident) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(incident)
   });
-  if (!res.ok) throw new Error('Fallo la ingesta en la API.');
+  ensureOk(res, 'Falló la ingesta en la API.');
   return res.json();
 }

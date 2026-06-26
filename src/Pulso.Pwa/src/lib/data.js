@@ -3,7 +3,7 @@
 // traen incidentes nuevos desde el watermark. Persiste un snapshot en IndexedDB
 // para ver el panorama sin conexión.
 import { fetchSituations, fetchSectorStats, fetchSummary, fetchSystemMetrics } from './api.js';
-import { situations, sectorStats, summary, systemMetrics } from './stores.js';
+import { situations, sectorStats, summary, systemMetrics, showToast } from './stores.js';
 import { saveSnapshot, getSnapshot } from './db.js';
 
 let watermark = null;          // mayor created_at visto (ISO 8601)
@@ -11,6 +11,20 @@ const byId = new Map();        // id -> situación (estado fusionado en memoria)
 let lastStats = [];
 let lastSummary = null;
 let currentQueryDate = null;   // fecha de consulta activa (formato YYYY-MM-DD o null)
+
+// Indicador de degradación del servidor para las cargas en segundo plano.
+// Mantenemos en pantalla lo ya cargado (cache) y avisamos UNA sola vez al fallar
+// (429/502/…), sin spamear en cada reintento (poll de 60s + reconexión SSE).
+let serverDegraded = false;
+function noteServerIssue() {
+  if (!serverDegraded) {
+    serverDegraded = true;
+    showToast('Reconectando con el servidor…');
+  }
+}
+function noteServerOk() {
+  serverDegraded = false;
+}
 
 function publish() {
   // Ordenar por created_at DESC para consistencia con el backend.
@@ -59,9 +73,11 @@ export async function loadInitial(date = null) {
       track(it);
     }
     persistSnapshot(publish());
+    noteServerOk();
     return sits.length;
   } catch (err) {
     console.error('Error en la carga inicial de datos:', err);
+    noteServerIssue();
     return 0;
   }
 }
@@ -88,9 +104,11 @@ export async function loadDelta() {
       // Sin incidentes nuevos, pero los agregados pueden haber cambiado: re-guardar liviano.
       persistSnapshot(Array.from(byId.values()));
     }
+    noteServerOk();
     return newCount;
   } catch (err) {
     console.error('Error en la carga incremental de datos:', err);
+    noteServerIssue();
     return 0;
   }
 }

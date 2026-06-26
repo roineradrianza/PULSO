@@ -22,4 +22,26 @@ public static class WebhookSupport
         var json = JsonSerializer.Serialize(payload, PulsoJsonSerializerContext.Default.PulsoPayload);
         return db.ListLeftPushAsync(QueueKey, json);
     }
+
+    // --- Límite por remitente (capa B) ---
+    // Frena el envenenamiento del mapa y el costo de IA cuando un mismo emisor
+    // inunda reportes, SIN importar su IP (clave para webhooks, donde todo el
+    // tráfico llega desde las IPs de Telegram/Meta). Cuenta en Redis con ventana
+    // por expiración de clave. Límite generoso: no debe suprimir picos legítimos
+    // de emergencia, solo el abuso evidente de un remitente.
+    public const int SenderMaxReports = 20;
+    public static readonly TimeSpan SenderWindow = TimeSpan.FromMinutes(10);
+
+    // Devuelve true si el remitente ya superó su cuota en la ventana actual.
+    public static async Task<bool> IsSenderRateLimitedAsync(IDatabase db, string channel, string sender)
+    {
+        // Sin identificador de remitente (p. ej. ingesta PWA anónima): la capa por IP aplica.
+        if (string.IsNullOrEmpty(sender)) return false;
+
+        var key = $"pulso:ratelimit:{channel}:{sender}";
+        var count = await db.StringIncrementAsync(key);
+        if (count == 1)
+            await db.KeyExpireAsync(key, SenderWindow);
+        return count > SenderMaxReports;
+    }
 }
