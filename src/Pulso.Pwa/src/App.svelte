@@ -13,6 +13,7 @@
   import { loadInitial, loadDelta, loadFromCache } from './lib/data.js';
   import { startRealtime, stopRealtime } from './lib/realtime.js';
   import { countQueued } from './lib/db.js';
+  import { initAnalytics, trackView } from './lib/analytics.js';
 
   let pollTimer;
   let currentView = 'main';
@@ -25,6 +26,8 @@
 
   function updateViewFromHash() {
     currentView = window.location.hash === '#/metrics' ? 'metrics' : 'main';
+    // Registrar la vista para analítica (ruta legible en vez del hash crudo).
+    trackView(currentView === 'metrics' ? '/metricas' : '/');
   }
 
   async function refreshPending() {
@@ -60,6 +63,9 @@
   }
 
   onMount(async () => {
+    // Analítica web (tráfico/uso + Web Vitals). No-op si no está configurada.
+    initAnalytics();
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('hashchange', updateViewFromHash);
