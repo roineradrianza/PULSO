@@ -4,7 +4,6 @@
   import { saveIncidentLocal } from '../lib/db.js';
   import { sendToApi } from '../lib/api.js';
   import { captureHardwareLocation } from '../lib/geo.js';
-  import { loadSituationsAndStats } from '../lib/data.js';
 
   const dispatch = createEventDispatcher();
 
@@ -69,16 +68,20 @@
       try {
         showToast('Transmitiendo reporte...');
         await sendToApi(incident);
-        showToast('Reporte enviado exitosamente.');
+        // Fija la expectativa: el reporte pasa por la cola y el triaje con IA antes de
+        // aparecer, así que no es instantáneo. La carga en tiempo real (SSE/poll) lo
+        // traerá al mapa cuando esté listo; no forzamos un refresco que mostraría nada.
+        showToast('✅ Reporte enviado. Puede tardar unos minutos en aparecer en el mapa.');
         resetForm();
-        setTimeout(loadSituationsAndStats, 3000);
       } catch (error) {
         // Distinguir el tipo de fallo: no mentir al usuario ni reintentar en vano.
         const status = error?.status;
 
         if (status === 400) {
-          // Datos inválidos: encolar fallaría siempre. Conservar el formulario para corregir.
-          showToast('No pudimos enviar el reporte. Revisa los datos e inténtalo de nuevo.', true);
+          // Datos inválidos: encolar fallaría siempre. Conservar el formulario para
+          // corregir y mostrar el motivo concreto del servidor (p. ej. coordenadas
+          // fuera de Venezuela, texto demasiado largo).
+          showToast(error?.message || 'No pudimos enviar el reporte. Revisa los datos e inténtalo de nuevo.', true);
           return;
         }
 
@@ -136,7 +139,7 @@
       <textarea
         id="text-body"
         rows="4"
-        placeholder="Describa la situación: si hay daños materiales, escapes de agua o gas, heridos, o escriba el nombre completo y la cédula de la persona que encontró a salvo."
+        placeholder="Describa la situación: daños materiales, escapes de agua o gas, heridos; o el nombre completo y la cédula de una persona atrapada, desaparecida o que encontró a salvo."
         required
         bind:value={reportDetails}
       ></textarea>
@@ -163,6 +166,9 @@
       <button id="btn-gps" type="button" class="btn-secondary" style="padding: 10px;" on:click={captureGps} disabled={gpsLoading}>
         Obtener mi ubicación actual
       </button>
+      <p style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
+        Si no logras obtener el GPS, no te preocupes: ubicaremos tu reporte por la dirección escrita.
+      </p>
     </div>
 
     <button type="submit" class="btn-primary" style="width: 100%;">Enviar reporte de emergencia</button>

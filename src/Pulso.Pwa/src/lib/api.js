@@ -69,6 +69,23 @@ export async function sendToApi(incident) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(incident)
   });
-  ensureOk(res, 'Falló la ingesta en la API.');
+  if (!res.ok) {
+    // Conservar el motivo específico del servidor (p. ej. coordenadas fuera de
+    // Venezuela, texto muy largo) para poder mostrárselo al usuario en un 400.
+    let serverMsg = null;
+    try {
+      const body = await res.json();
+      serverMsg = typeof body?.error === 'string' ? body.error : null;
+    } catch {
+      // Sin cuerpo JSON (p. ej. 429 de rate limit): se usa el mensaje genérico.
+    }
+    const retryAfterRaw = res.headers.get('Retry-After');
+    const retryAfter = retryAfterRaw ? Number(retryAfterRaw) : null;
+    throw new ApiError(
+      res.status,
+      serverMsg ?? 'Falló la ingesta en la API.',
+      Number.isFinite(retryAfter) ? retryAfter : null
+    );
+  }
   return res.json();
 }
