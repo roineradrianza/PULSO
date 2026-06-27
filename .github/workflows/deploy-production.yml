@@ -61,6 +61,11 @@ jobs:
 
       - name: Build PWA
         working-directory: src/Pulso.Pwa
+        # Analítica web (Umami) para PRODUCCIÓN. Valores públicos (no secretos): se
+        # inyectan en el bundle en tiempo de build. Website ID del sitio pulsoaid.org.
+        env:
+          VITE_UMAMI_SRC: https://analytics.pulsoaid.org/script
+          VITE_UMAMI_WEBSITE_ID: 24413562-d6ab-4535-8d5a-09391b28ed58
         run: pnpm build
 
       # -------------------------------------------------------------
