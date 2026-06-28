@@ -1,11 +1,10 @@
 using System.Diagnostics;
-using System.Text.Json;
 using Pulso.AiWorker.Models;
 
 namespace Pulso.AiWorker.Services;
 
 /// <summary>
-/// Realiza el triaje estructurado de reportes de emergencia usando el cliente LLM estructurado.
+/// Realiza el triaje estructurado de reportes de emergencia usando el cliente LLM estructurado genérico.
 /// Si la API key no está configurada o la llamada remota falla, recurre a un
 /// simulador local para no interrumpir el flujo del worker.
 /// </summary>
@@ -53,21 +52,18 @@ public sealed class GeminiTriageService : IGeminiTriageService
         var systemPromptText = await LoadSystemPromptAsync(cancellationToken);
         var partsList        = BuildParts(text, media);
 
-        var resultJson = await _llmClient.GenerateJsonAsync(
+        var triageResult = await _llmClient.GenerateStructuredAsync<TriageResult>(
             systemPromptText,
             partsList,
-            GetResponseSchema(),
             modelName,
             cancellationToken);
 
-        if (string.IsNullOrEmpty(resultJson))
+        if (triageResult == null)
         {
             _logger.LogWarning("Gemini API call returned empty or failed. Using local triage simulator as fallback.");
             return SimulateTriage(text);
         }
 
-        var triageResult = JsonSerializer.Deserialize<TriageResult>(resultJson)
-            ?? throw new InvalidOperationException("Fallo al deserializar el resultado del triaje.");
         return triageResult with { TriageProvider = "gemini" };
     }
 
@@ -145,29 +141,6 @@ public sealed class GeminiTriageService : IGeminiTriageService
 
         return parts;
     }
-
-    private static object GetResponseSchema() => new
-    {
-        type = "OBJECT",
-        properties = new
-        {
-            severity          = new { type = "STRING", @enum = new[] { "LOW", "MEDIUM", "HIGH", "CRITICAL" } },
-            category          = new { type = "STRING", @enum = new[] { "SEARCH_AND_RESCUE", "FIRE_HAZARD", "MEDICAL_EMERGENCY", "WATER_FOOD_SHORTAGE", "INFRASTRUCTURE_DAMAGE" } },
-            tags              = new { type = "ARRAY",  items = new { type = "STRING" } },
-            extracted_address = new { type = "STRING", description = "Calles, avenidas, urbanizaciones o estados mencionados." },
-            affected_people   = new { type = "INTEGER", description = "Cantidad aproximada de heridos o atrapados." },
-            transcription     = new { type = "STRING", description = "Transcripción completa si es audio, de lo contrario cadena vacía." },
-            description       = new { type = "STRING", description = "Resumen objetivo y breve (1-2 frases, en español) de lo que reporta el ciudadano o de lo que se observa en la imagen (daños, derrumbes, incendios, inundaciones, heridos). Útil como descripción del incidente cuando no hay texto escrito." },
-            sector            = new { type = "STRING", description = "Nombre normalizado del sector, urbanización o barrio (ej. Altamira, Petare, Catia, La Isabelica). Si no se menciona, cadena vacía." },
-            city              = new { type = "STRING", description = "Ciudad o municipio del incidente (ej. Caracas, Valencia, Maracaibo, San Cristóbal, Barquisimeto). PLATAFORMA NACIONAL: no asumas Caracas; infiere la ciudad del texto o del sector mencionado. Si no se puede determinar, cadena vacía." },
-            is_actionable_report = new { type = "BOOLEAN", description = "true si el mensaje describe CUALQUIER reporte concreto, aunque sea breve: daños, incendios, inundaciones o derrumbes; PERSONAS (desaparecidas, atrapadas, heridas, encontradas, a salvo o avistadas/identificadas en un lugar); o necesidades (agua, comida, medicinas, insumos). false SOLO si es un saludo, una pregunta general, una prueba o spam, sin ningún hecho ni lugar concreto." },
-            is_person_found   = new { type = "BOOLEAN", description = "Establecer en true si el reporte indica que una persona perdida o afectada fue encontrada o está a salvo." },
-            found_person_name = new { type = "STRING", description = "Nombre completo de la persona encontrada (si aplica, de lo contrario cadena vacía)." },
-            found_person_document = new { type = "STRING", description = "Número de cédula o documento de la persona encontrada (si aplica, solo dígitos, de lo contrario cadena vacía)." },
-            affected_person_name = new { type = "STRING", description = "Nombre completo de la persona EN PELIGRO: atrapada, desaparecida, herida o que se está buscando (NO la que está a salvo). Ej.: 'hay una persona atrapada llamada María Alejandra' -> 'María Alejandra'. Si no se menciona ningún nombre así, cadena vacía." }
-        },
-        required = new[] { "severity", "category", "tags", "extracted_address", "affected_people", "transcription", "description", "sector", "city", "is_actionable_report", "is_person_found", "found_person_name", "found_person_document", "affected_person_name" }
-    };
 
     /// <summary>
     /// Simulador local de triaje para entornos sin API key configurada.

@@ -1,5 +1,10 @@
+using System.ComponentModel;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Schema;
+using Pulso.AiWorker.Models;
 
 namespace Pulso.AiWorker.Services;
 
@@ -7,7 +12,7 @@ namespace Pulso.AiWorker.Services;
 /// Implementación de <see cref="ILlmStructuredClient"/> sobre Google Gemini (Structured
 /// Outputs: responseMimeType=application/json + responseSchema). Encapsula la URL, la
 /// autenticación (x-goog-api-key), la resolución del modelo y el parseo de la respuesta,
-/// para que los consumidores solo aporten prompt y esquema.
+/// para que los consumidores solo aporten prompt y el tipo genérico C#.
 /// </summary>
 public sealed class GeminiStructuredClient : ILlmStructuredClient
 {
@@ -25,12 +30,11 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
         _logger        = logger;
     }
 
-    public async Task<string?> GenerateJsonAsync(
+    public async Task<T?> GenerateStructuredAsync<T>(
         string systemInstruction,
         object userPrompt,
-        object responseSchema,
         string? modelName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) where T : class
     {
         var apiKey = _configuration["GeminiApiKey"];
         if (string.IsNullOrEmpty(apiKey) || apiKey.Contains("TU_API_KEY") || apiKey == "placeholder")
@@ -62,6 +66,53 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
             parts = new[] { new { text = userPrompt.ToString() } };
         }
 
+        var options = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
+        // Configuración para inyectar descripciones de los atributos [Description] en el JSON Schema
+        var exporterOptions = new JsonSchemaExporterOptions
+        {
+            TransformSchemaNode = (context, schema) =>
+            {
+                var attributeProvider = context.PropertyInfo is not null 
+                    ? context.PropertyInfo.AttributeProvider 
+                    : context.TypeInfo.Type;
+
+                var descriptionAttr = attributeProvider?
+                    .GetCustomAttributes(inherit: true)
+                    .OfType<DescriptionAttribute>()
+                    .FirstOrDefault();
+
+                if (descriptionAttr != null && schema is JsonObject jObj)
+                {
+                    jObj["description"] = descriptionAttr.Description;
+                }
+
+                return schema;
+            }
+        };
+
+        var responseSchema = options.GetJsonSchemaAsNode(typeof(T), exporterOptions);
+
+        // Inyectar restricciones de enumerados (enum) en tiempo de ejecución para TriageResult
+        if (typeof(T) == typeof(TriageResult))
+        {
+            var properties = responseSchema?["properties"]?.AsObject();
+            if (properties != null)
+            {
+                if (properties.TryGetPropertyValue("severity", out var severityNode) && severityNode is JsonObject severityObj)
+                {
+                    severityObj["enum"] = new JsonArray { "LOW", "MEDIUM", "HIGH", "CRITICAL" };
+                }
+                if (properties.TryGetPropertyValue("category", out var categoryNode) && categoryNode is JsonObject categoryObj)
+                {
+                    categoryObj["enum"] = new JsonArray { "SEARCH_AND_RESCUE", "FIRE_HAZARD", "MEDICAL_EMERGENCY", "WATER_FOOD_SHORTAGE", "INFRASTRUCTURE_DAMAGE" };
+                }
+            }
+        }
+
         var body = new
         {
             systemInstruction = new { parts = new[] { new { text = systemInstruction } } },
@@ -69,8 +120,7 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
             generationConfig  = new { responseMimeType = "application/json", responseSchema }
         };
 
-        var jsonRequest = JsonSerializer.Serialize(
-            body, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var jsonRequest = JsonSerializer.Serialize(body, options);
 
         try
         {
@@ -91,12 +141,17 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
             var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
             using var doc = JsonDocument.Parse(responseJson);
 
-            return doc.RootElement
+            var candidateText = doc.RootElement
                 .GetProperty("candidates")[0]
                 .GetProperty("content")
                 .GetProperty("parts")[0]
                 .GetProperty("text")
                 .GetString();
+
+            if (string.IsNullOrEmpty(candidateText))
+                return null;
+
+            return JsonSerializer.Deserialize<T>(candidateText, options);
         }
         catch (OperationCanceledException)
         {
