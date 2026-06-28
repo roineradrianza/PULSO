@@ -183,10 +183,13 @@
         name.textContent = 'Anónimo';
 
         const time = document.createElement('span');
-        time.textContent = new Date(c.created_at).toLocaleTimeString('es-VE', {
+        time.textContent = new Date(c.created_at).toLocaleString('es-VE', {
           timeZone: 'America/Caracas',
+          day: '2-digit',
+          month: '2-digit',
           hour: '2-digit',
-          minute: '2-digit'
+          minute: '2-digit',
+          hour12: true
         });
 
         itemMeta.append(name, time);
