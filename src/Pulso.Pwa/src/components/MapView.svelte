@@ -5,7 +5,7 @@
   import 'leaflet.markercluster';
   import 'leaflet.markercluster/dist/MarkerCluster.css';
   import { situations, mapFocus } from '../lib/stores.js';
-  import { fetchSituationDetail } from '../lib/api.js';
+  import { fetchSituationDetail, fetchComments, sendComment } from '../lib/api.js';
 
   let mapEl;
   let map;
@@ -145,6 +145,150 @@
     }
     wrap.append(body, meta);
 
+    // --- SECCIÓN DE COMENTARIOS (ANÓNIMOS Y ONLINE-ONLY) ---
+    const commentsSection = document.createElement('div');
+    commentsSection.style.cssText = 'margin-top: 10px; border-top: 1px solid var(--card-border); padding-top: 10px;';
+
+    const commentsTitle = document.createElement('h5');
+    commentsTitle.style.cssText = 'margin: 0 0 6px 0; font-family: "Outfit"; font-size: 13px; color: var(--text-main); font-weight: 700;';
+    commentsTitle.textContent = 'Actualizaciones';
+
+    const commentsList = document.createElement('div');
+    commentsList.style.cssText = 'max-height: 100px; overflow-y: auto; margin-bottom: 8px; font-size: 11px; display: flex; flex-direction: column; gap: 5px; padding-right: 4px;';
+    commentsList.textContent = 'Cargando comentarios…';
+
+    commentsSection.append(commentsTitle, commentsList);
+
+    let commentsData = [];
+
+    function renderComments() {
+      commentsList.innerHTML = '';
+      if (commentsData.length === 0) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'color: var(--text-muted); font-style: italic;';
+        empty.textContent = 'Sin comentarios aún.';
+        commentsList.appendChild(empty);
+        return;
+      }
+
+      for (const c of commentsData) {
+        const item = document.createElement('div');
+        item.style.cssText = 'background: rgba(255,255,255,0.02); border-radius: 4px; padding: 4px 6px; border-left: 2px solid var(--info-blue);';
+
+        const itemMeta = document.createElement('div');
+        itemMeta.style.cssText = 'display: flex; justify-content: space-between; color: var(--text-muted); font-size: 9px; margin-bottom: 2px;';
+
+        const name = document.createElement('span');
+        name.style.fontWeight = '700';
+        name.textContent = 'Anónimo';
+
+        const time = document.createElement('span');
+        time.textContent = new Date(c.created_at).toLocaleTimeString('es-VE', {
+          timeZone: 'America/Caracas',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        itemMeta.append(name, time);
+
+        const text = document.createElement('div');
+        text.style.cssText = 'color: var(--text-main); word-break: break-word; line-height: 1.3;';
+        text.textContent = c.raw_text;
+
+        item.append(itemMeta, text);
+        commentsList.appendChild(item);
+      }
+      commentsList.scrollTop = commentsList.scrollHeight;
+    }
+
+    if (!navigator.onLine) {
+      commentsList.style.color = 'var(--text-muted)';
+      commentsList.textContent = 'Requiere conexión activa para ver o enviar comentarios.';
+    } else {
+      fetchComments(sit.id)
+        .then((list) => {
+          commentsData = list;
+          renderComments();
+        })
+        .catch(() => {
+          commentsList.style.color = 'var(--danger-red)';
+          commentsList.textContent = 'Error al cargar comentarios.';
+        });
+    }
+
+    const form = document.createElement('form');
+    form.style.cssText = 'display: flex; flex-direction: column; gap: 4px;';
+
+    const textarea = document.createElement('textarea');
+    textarea.placeholder = 'Escribe una actualización (máx 300 caracteres)...';
+    textarea.maxLength = 300;
+    textarea.required = true;
+    textarea.style.cssText =
+      'width: 100%; height: 38px; resize: none; background: rgba(0,0,0,0.25); ' +
+      'border: 1px solid var(--card-border); border-radius: 4px; color: var(--text-main); ' +
+      'padding: 4px 6px; font-size: 11px; font-family: inherit; box-sizing: border-box;';
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center;';
+
+    const charCount = document.createElement('span');
+    charCount.style.cssText = 'font-size: 9px; color: var(--text-muted);';
+    charCount.textContent = '0 / 300';
+
+    textarea.addEventListener('input', () => {
+      charCount.textContent = `${textarea.value.length} / 300`;
+    });
+
+    const submitBtn = document.createElement('button');
+    submitBtn.type = 'submit';
+    submitBtn.textContent = 'Enviar';
+    submitBtn.style.cssText =
+      'background: var(--info-blue); border: none; color: #fff; font-family: "Outfit"; ' +
+      'font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 4px; cursor: pointer; ' +
+      'transition: background 0.15s;';
+
+    submitBtn.addEventListener('mouseenter', () => submitBtn.style.background = '#2c85e6');
+    submitBtn.addEventListener('mouseleave', () => submitBtn.style.background = 'var(--info-blue)');
+
+    btnRow.append(charCount, submitBtn);
+    form.append(textarea, btnRow);
+
+    if (!navigator.onLine) {
+      textarea.disabled = true;
+      submitBtn.disabled = true;
+      submitBtn.style.background = 'rgba(255,255,255,0.05)';
+      submitBtn.style.color = 'var(--text-muted)';
+      submitBtn.style.cursor = 'not-allowed';
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = textarea.value.trim();
+      if (!text) return;
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Enviando…';
+
+      sendComment(sit.id, text)
+        .then((newComment) => {
+          commentsData.push(newComment);
+          renderComments();
+          textarea.value = '';
+          charCount.textContent = '0 / 300';
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Enviar';
+        })
+        .catch((err) => {
+          console.error(err);
+          alert('No se pudo enviar el comentario.');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Enviar';
+        });
+    });
+
+    commentsSection.appendChild(form);
+    wrap.append(commentsSection);
+
     // Detalle lazy: usar caché o descargar.
     const cached = detailCache.get(sit.id);
     if (cached !== undefined) {
@@ -168,7 +312,7 @@
   function makeMarker(sit) {
     const marker = L.marker([sit.latitude, sit.longitude], { icon: buildIcon(sit) });
     // bindPopup con función => contenido (y descarga lazy) solo al abrir.
-    marker.bindPopup(() => buildPopup(sit));
+    marker.bindPopup(() => buildPopup(sit), { minWidth: 260, maxWidth: 320 });
     // Severidad accesible para colorear el cluster.
     marker.pulsoSeverity = sit.severity;
     return marker;
@@ -196,7 +340,7 @@
         existing.marker.setLatLng([sit.latitude, sit.longitude]);
         existing.marker.setIcon(buildIcon(sit));
         existing.marker.pulsoSeverity = sit.severity;
-        existing.marker.bindPopup(() => buildPopup(sit));
+        existing.marker.bindPopup(() => buildPopup(sit), { minWidth: 260, maxWidth: 320 });
         existing.sig = sig;
         detailCache.delete(sit.id);
       }

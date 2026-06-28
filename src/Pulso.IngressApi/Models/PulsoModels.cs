@@ -80,3 +80,16 @@ public record MetricsResponse(
     [property: JsonPropertyName("peak_hours")] List<MetricsHourItem> PeakHours
 );
 
+// DTOs para el sistema de comentarios (anónimos por diseño).
+public record CommentDto(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("incident_id")] string IncidentId,
+    [property: JsonPropertyName("raw_text")] string RawText,
+    [property: JsonPropertyName("created_at")] DateTime CreatedAt
+);
+
+public record CreateCommentPayload(
+    [property: JsonPropertyName("rawText")] string RawText
+);
+
+

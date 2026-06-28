@@ -157,6 +157,105 @@ public static class PulsoApiEndpoints
             }
         }).RequireRateLimiting("reads");
 
+        // Obtener comentarios de un incidente (anónimos por diseño)
+        app.MapGet("/api/v1/pulso/situations/{id}/comments", async (string id, IConfiguration config) =>
+        {
+            if (!Guid.TryParse(id, out var guid))
+                return Results.BadRequest(new { error = "id inválido." });
+
+            var connStr = config.GetConnectionString("DefaultConnection");
+            try
+            {
+                await using var conn = new NpgsqlConnection(connStr);
+                await conn.OpenAsync();
+
+                // Validar existencia del incidente
+                await using (var checkCmd = new NpgsqlCommand("SELECT 1 FROM public.incidents WHERE id = @id", conn))
+                {
+                    checkCmd.Parameters.AddWithValue("id", guid);
+                    var exists = await checkCmd.ExecuteScalarAsync();
+                    if (exists == null)
+                        return Results.NotFound(new { error = "Incidente no encontrado." });
+                }
+
+                var list = new List<CommentDto>();
+                await using var cmd = new NpgsqlCommand(
+                    "SELECT id, incident_id, raw_text, created_at FROM public.comments WHERE incident_id = @id ORDER BY created_at ASC", conn);
+                cmd.Parameters.AddWithValue("id", guid);
+
+                await using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    list.Add(new CommentDto(
+                        reader.GetGuid(0).ToString(),
+                        reader.GetGuid(1).ToString(),
+                        reader.GetString(2),
+                        reader.GetDateTime(3)
+                    ));
+                }
+                return Results.Ok(list);
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogError(ex, "Error occurred while fetching comments.");
+                return Results.Problem("An error occurred while processing your request.");
+            }
+        }).RequireRateLimiting("reads");
+
+        // Agregar un comentario a un incidente (anónimo, máximo 300 caracteres)
+        app.MapPost("/api/v1/pulso/situations/{id}/comments", async (string id, CreateCommentPayload payload, IConfiguration config) =>
+        {
+            if (!Guid.TryParse(id, out var guid))
+                return Results.BadRequest(new { error = "id inválido." });
+
+            if (payload == null || string.IsNullOrWhiteSpace(payload.RawText))
+                return Results.BadRequest(new { error = "El comentario no puede estar vacío." });
+
+            var trimmedText = payload.RawText.Trim();
+            if (trimmedText.Length > 300)
+                return Results.BadRequest(new { error = "El comentario excede el límite de 300 caracteres." });
+
+            var connStr = config.GetConnectionString("DefaultConnection");
+            try
+            {
+                await using var conn = new NpgsqlConnection(connStr);
+                await conn.OpenAsync();
+
+                // Validar existencia del incidente
+                await using (var checkCmd = new NpgsqlCommand("SELECT 1 FROM public.incidents WHERE id = @id", conn))
+                {
+                    checkCmd.Parameters.AddWithValue("id", guid);
+                    var exists = await checkCmd.ExecuteScalarAsync();
+                    if (exists == null)
+                        return Results.NotFound(new { error = "Incidente no encontrado." });
+                }
+
+                await using var cmd = new NpgsqlCommand(
+                    "INSERT INTO public.comments (incident_id, raw_text) VALUES (@incident_id, @raw_text) RETURNING id, created_at", conn);
+                cmd.Parameters.AddWithValue("incident_id", guid);
+                cmd.Parameters.AddWithValue("raw_text", trimmedText);
+
+                await using var reader = await cmd.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    var commentId = reader.GetGuid(0).ToString();
+                    var createdAt = reader.GetDateTime(1);
+                    return Results.Created($"/api/v1/pulso/situations/{id}/comments/{commentId}", new CommentDto(
+                        commentId,
+                        id,
+                        trimmedText,
+                        createdAt
+                    ));
+                }
+                return Results.Problem("No se pudo registrar el comentario.");
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogError(ex, "Error occurred while creating comment.");
+                return Results.Problem("An error occurred while processing your request.");
+            }
+        }).RequireRateLimiting("writes");
+
         // Totales agregados para las tarjetas del dashboard (independientes del subconjunto cargado).
         app.MapGet("/api/v1/pulso/summary", async (IConfiguration config) =>
         {

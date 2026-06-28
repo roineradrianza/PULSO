@@ -89,3 +89,20 @@ export async function sendToApi(incident) {
   }
   return res.json();
 }
+
+export async function fetchComments(incidentId) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/pulso/situations/${encodeURIComponent(incidentId)}/comments`);
+  ensureOk(res, 'No se pudieron cargar los comentarios.');
+  return res.json();
+}
+
+export async function sendComment(incidentId, rawText) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/pulso/situations/${encodeURIComponent(incidentId)}/comments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rawText })
+  });
+  ensureOk(res, 'No se pudo enviar el comentario.');
+  return res.json();
+}
+
