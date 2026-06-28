@@ -25,7 +25,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddHttpClient("nominatim", client =>
 {
     client.BaseAddress = new Uri("https://nominatim.openstreetmap.org/");
-    client.DefaultRequestHeaders.UserAgent.ParseAdd("PulsoAid/1.0 (+https://pulsoaid.org; contacto: roineradrianzap@gmail.com)");
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("PulsoAid/1.0 (+https://pulsoaid.org; contacto: dev@roineradrianza.com)");
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 

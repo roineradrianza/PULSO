@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'src/**'
+      - 'supabase/**'
+      - 'Caddyfile'
+      - '.github/workflows/deploy-production.yml'
 
 jobs:
   build-and-deploy:

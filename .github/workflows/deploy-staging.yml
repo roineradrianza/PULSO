@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - stage
+    paths:
+      - 'src/**'
+      - 'supabase/**'
+      - 'Caddyfile.staging'
+      - '.github/workflows/deploy-staging.yml'
 
 jobs:
   build-and-deploy:
@@ -83,9 +88,9 @@ jobs:
       - name: Deploy to Staging VPS via SSH/SCP
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.STAGING_HOST }}         # 158.101.97.85
-          username: ${{ secrets.STAGING_USER }}     # ubuntu
-          key: ${{ secrets.STAGING_SSH_KEY }}       # Contenido de stage-ssh-key-2026-06-25.key
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
           source: "publish-api.tar.gz,publish-worker.tar.gz,pwa-dist.tar.gz,Caddyfile.staging"
           target: "/tmp"
 
