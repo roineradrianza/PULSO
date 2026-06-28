@@ -27,7 +27,7 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
 
     public async Task<string?> GenerateJsonAsync(
         string systemInstruction,
-        string userPrompt,
+        object userPrompt,
         object responseSchema,
         string? modelName,
         CancellationToken cancellationToken)
@@ -43,10 +43,29 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
         var apiVersion = model.Contains("1.5") ? "v1" : "v1beta";
         var url        = $"https://generativelanguage.googleapis.com/{apiVersion}/models/{model}:generateContent";
 
+        object parts;
+        if (userPrompt is string textPrompt)
+        {
+            parts = new[] { new { text = textPrompt } };
+        }
+        else if (userPrompt is System.Collections.IEnumerable enumerableParts)
+        {
+            var list = new List<object>();
+            foreach (var part in enumerableParts)
+            {
+                list.Add(part);
+            }
+            parts = list.ToArray();
+        }
+        else
+        {
+            parts = new[] { new { text = userPrompt.ToString() } };
+        }
+
         var body = new
         {
             systemInstruction = new { parts = new[] { new { text = systemInstruction } } },
-            contents          = new[] { new { parts = new[] { new { text = userPrompt } } } },
+            contents          = new[] { new { parts } },
             generationConfig  = new { responseMimeType = "application/json", responseSchema }
         };
 

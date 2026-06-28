@@ -2,7 +2,7 @@ namespace Pulso.AiWorker.Services;
 
 /// <summary>
 /// Cliente de modelo de lenguaje para SALIDA ESTRUCTURADA (JSON forzado por un esquema).
-/// Abstrae el proveedor concreto (hoy Gemini) para que los consumidores —p. ej. el
+/// Abstrae el proveedor concreto para que los consumidores —p. ej. el
 /// geocodificador por LLM— no acoplen su lógica a una API específica. Cambiar de proveedor
 /// de LLM es reemplazar la implementación registrada en DI, sin tocar a los consumidores.
 /// </summary>
@@ -16,7 +16,7 @@ public interface ILlmStructuredClient
     /// </summary>
     Task<string?> GenerateJsonAsync(
         string systemInstruction,
-        string userPrompt,
+        object userPrompt,
         object responseSchema,
         string? modelName,
         CancellationToken cancellationToken);
