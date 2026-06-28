@@ -65,7 +65,7 @@
   function buildIcon(sit) {
     const color = severityColor(sit);
     return L.divIcon({
-      html: `<div style="background-color: ${color}; width: 14px; height: 14px; border: 2px solid #ffffff; border-radius: 50%; box-shadow: 0 0 10px ${color};"></div>`,
+      html: `<div class="interactive-marker-dot" style="background-color: ${color}; width: 14px; height: 14px; border: 2px solid #ffffff; border-radius: 50%; box-shadow: 0 0 10px ${color}; transition: transform 0.15s ease-out;"></div>`,
       className: 'custom-marker-icon',
       iconSize: [14, 14],
       iconAnchor: [7, 7]
@@ -261,10 +261,30 @@
 </script>
 
 <div class="card" style="padding: 20px;">
-  <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 10px;">
+  <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 4px;">
     Mapa de Situación en Tiempo Real
   </h2>
+  <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+    <span>📌</span> Toca un punto en el mapa o un sector en el listado para ver los detalles del reporte.
+  </p>
   <div class="map-container">
     <div bind:this={mapEl} id="map"></div>
   </div>
 </div>
+
+<style>
+  :global(.custom-marker-icon) {
+    cursor: pointer !important;
+  }
+  :global(.custom-marker-icon:hover .interactive-marker-dot) {
+    transform: scale(1.35);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.8) !important;
+  }
+  :global(.pulso-cluster-icon) {
+    cursor: pointer !important;
+  }
+  :global(.pulso-cluster-icon:hover > div) {
+    transform: scale(1.1);
+    transition: transform 0.15s ease-out;
+  }
+</style>
