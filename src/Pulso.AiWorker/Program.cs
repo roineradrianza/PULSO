@@ -29,15 +29,24 @@ builder.Services.AddHttpClient("nominatim", client =>
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 
+// Cliente del geocodificador LLM: timeout acotado para no estancar el worker si Gemini tarda.
+builder.Services.AddHttpClient(nameof(LlmGeocodingProvider), client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+
 // ── Servicios de dominio ──────────────────────────────────────────────────────
 builder.Services.AddSingleton<IGeminiTriageService,    GeminiTriageService>();
 builder.Services.AddSingleton<IMediaDownloadService,   MediaDownloadService>();
 builder.Services.AddSingleton<IIncidentRepository,     IncidentRepository>();
 builder.Services.AddSingleton<IOutboundMessageService, OutboundMessageService>();
 
-// Geocodificación: el ORDEN de registro define la cadena de fallback.
-// Hoy solo Nominatim; cuando se agregue Google, registrarlo AQUÍ debajo para que
-// actúe como reintento cuando Nominatim no resuelva.
+// Geocodificación: el ORDEN de registro define la cadena de fallback (el primero que
+// resuelve dentro de Venezuela gana). PRIMARIO: geocodificador por LLM (Gemini capaz),
+// que razona direcciones coloquiales venezolanas donde OSM tiene poca cobertura.
+// RESPALDO: Nominatim, para lugares bien mapeados cuando el LLM cede por baja confianza.
+// Cuando se agregue Google, registrarlo aquí según la precisión/costo deseados.
+builder.Services.AddSingleton<IGeocodingProvider, LlmGeocodingProvider>();
 builder.Services.AddSingleton<IGeocodingProvider, NominatimGeocodingProvider>();
 // builder.Services.AddSingleton<IGeocodingProvider, GoogleGeocodingProvider>();
 builder.Services.AddSingleton<IGeocodingService, GeocodingService>();

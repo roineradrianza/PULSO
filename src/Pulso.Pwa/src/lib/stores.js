@@ -17,7 +17,7 @@ function getTodayInVet() {
 }
 
 // Filtro de fecha seleccionado
-export const selectedDate = writable(getTodayInVet());
+export const selectedDate = writable('');
 
 // Datos cargados desde la API.
 export const situations = writable([]);

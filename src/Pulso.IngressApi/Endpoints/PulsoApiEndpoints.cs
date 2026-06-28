@@ -55,7 +55,7 @@ public static class PulsoApiEndpoints
             DateTimeOffset? since = DateTimeOffset.TryParse(request.Query["since"].ToString(), out var s) ? s : null;
             int limit = int.TryParse(request.Query["limit"].ToString(), out var l) ? Math.Clamp(l, 1, 2000) : 500;
             var dateStr = request.Query["date"].ToString();
-            var (utcStart, utcEnd) = GetUtcDateRange(dateStr);
+            var hasDate = !string.IsNullOrEmpty(dateStr);
 
             try
             {
@@ -77,16 +77,20 @@ public static class PulsoApiEndpoints
                         created_at,
                         affected_person_name
                     FROM public.incidents
-                    WHERE status != 'DUPLICATE'
-                      AND created_at >= @utcStart AND created_at <= @utcEnd"
+                    WHERE status != 'DUPLICATE'"
+                    + (hasDate ? " AND created_at >= @utcStart AND created_at <= @utcEnd" : "")
                     + (since.HasValue ? " AND created_at > @since" : "")
                     + @"
                     ORDER BY created_at DESC
                     LIMIT @limit";
 
                 await using var cmd = new NpgsqlCommand(query, conn);
-                cmd.Parameters.AddWithValue("utcStart", utcStart);
-                cmd.Parameters.AddWithValue("utcEnd", utcEnd);
+                if (hasDate)
+                {
+                    var (utcStart, utcEnd) = GetUtcDateRange(dateStr);
+                    cmd.Parameters.AddWithValue("utcStart", utcStart);
+                    cmd.Parameters.AddWithValue("utcEnd", utcEnd);
+                }
                 if (since.HasValue) cmd.Parameters.AddWithValue("since", since.Value.UtcDateTime);
                 cmd.Parameters.AddWithValue("limit", limit);
                 await using var reader = await cmd.ExecuteReaderAsync();
@@ -190,7 +194,7 @@ public static class PulsoApiEndpoints
         {
             var connStr = config.GetConnectionString("DefaultConnection");
             var dateStr = request.Query["date"].ToString();
-            var (utcStart, utcEnd) = GetUtcDateRange(dateStr);
+            var hasDate = !string.IsNullOrEmpty(dateStr);
             var list = new List<LocationStat>();
 
             try
@@ -213,13 +217,18 @@ public static class PulsoApiEndpoints
                         AVG(ST_Y(coordinates::geometry)) as latitude,
                         AVG(ST_X(coordinates::geometry)) as longitude
                     FROM public.incidents
-                    WHERE status != 'DUPLICATE' AND sector IS NOT NULL AND sector != ''
-                      AND created_at >= @utcStart AND created_at <= @utcEnd
+                    WHERE status != 'DUPLICATE' AND sector IS NOT NULL AND sector != ''"
+                    + (hasDate ? " AND created_at >= @utcStart AND created_at <= @utcEnd" : "")
+                    + @"
                     GROUP BY sector_name";
 
                 await using var cmd = new NpgsqlCommand(query, conn);
-                cmd.Parameters.AddWithValue("utcStart", utcStart);
-                cmd.Parameters.AddWithValue("utcEnd", utcEnd);
+                if (hasDate)
+                {
+                    var (utcStart, utcEnd) = GetUtcDateRange(dateStr);
+                    cmd.Parameters.AddWithValue("utcStart", utcStart);
+                    cmd.Parameters.AddWithValue("utcEnd", utcEnd);
+                }
                 await using var reader = await cmd.ExecuteReaderAsync();
 
                 while (await reader.ReadAsync())

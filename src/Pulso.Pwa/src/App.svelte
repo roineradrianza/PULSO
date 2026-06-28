@@ -20,7 +20,7 @@
 
   // Carga reactiva de datos al cambiar la fecha seleccionada o al recuperar red.
   // announce: es una acción explícita del usuario, así que mostramos el motivo si falla (429/502/…).
-  $: if ($selectedDate && $online) {
+  $: if ($selectedDate !== undefined && $online) {
     loadInitial($selectedDate, { announce: true });
   }
 
