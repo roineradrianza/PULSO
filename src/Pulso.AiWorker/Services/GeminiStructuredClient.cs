@@ -68,7 +68,8 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
 
         var options = new JsonSerializerOptions
         {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver()
         };
 
         // Configuración para inyectar descripciones de los atributos [Description] en el JSON Schema
