@@ -4,7 +4,7 @@
   import 'leaflet/dist/leaflet.css';
   import 'leaflet.markercluster';
   import 'leaflet.markercluster/dist/MarkerCluster.css';
-  import { situations, mapFocus } from '../lib/stores.js';
+  import { situations, mapFocus, showToast } from '../lib/stores.js';
   import { fetchSituationDetail, fetchComments, sendComment } from '../lib/api.js';
 
   let mapEl;
@@ -280,7 +280,7 @@
         })
         .catch((err) => {
           console.error(err);
-          alert('No se pudo enviar el comentario.');
+          showToast(err.message || 'No se pudo enviar el comentario.', true);
           submitBtn.disabled = false;
           submitBtn.textContent = 'Enviar';
         });

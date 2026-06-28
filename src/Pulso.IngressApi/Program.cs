@@ -67,6 +67,16 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0
         }));
 
+    // Escritura de comentarios (PWA): limitar escrituras por IP para evitar spam.
+    options.AddPolicy("writes", httpContext =>
+        RateLimitPartition.GetSlidingWindowLimiter(ClientIp(httpContext), _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = 15,
+            Window = TimeSpan.FromMinutes(1),
+            SegmentsPerWindow = 6,
+            QueueLimit = 0
+        }));
+
     // SSE: conexiones long-lived; limitar las concurrentes por IP.
     options.AddPolicy("sse", httpContext =>
         RateLimitPartition.GetConcurrencyLimiter(ClientIp(httpContext), _ => new ConcurrencyLimiterOptions

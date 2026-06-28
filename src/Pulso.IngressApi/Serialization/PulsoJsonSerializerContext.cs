@@ -18,6 +18,9 @@ namespace Pulso.IngressApi.Serialization;
 [JsonSerializable(typeof(MetricsHourItem))]
 [JsonSerializable(typeof(List<MetricsHourItem>))]
 [JsonSerializable(typeof(Dictionary<string, int>))]
+[JsonSerializable(typeof(CommentDto))]
+[JsonSerializable(typeof(List<CommentDto>))]
+[JsonSerializable(typeof(CreateCommentPayload))]
 internal partial class PulsoJsonSerializerContext : JsonSerializerContext
 {
 }
