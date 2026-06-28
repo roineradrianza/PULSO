@@ -36,12 +36,12 @@ public sealed class SituationRepository : ISituationRepository
     private record DbLocationStat(
         string sector_name,
         string? city_name,
-        int incident_count,
+        long incident_count,
         string sector_status,
         string? people_names,
         string? searched_names,
-        double? latitude,
-        double? longitude);
+        double latitude,
+        double longitude);
 
     private record DbEngineStat(string provider, int count);
     private record DbChannelStat(string channel, int count);
@@ -228,7 +228,7 @@ public sealed class SituationRepository : ISituationRepository
                 : row.searched_names.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
 
             var city = string.IsNullOrEmpty(row.city_name) ? null : row.city_name;
-            return new LocationStat(row.sector_name, city, row.sector_status, row.incident_count, peopleList, searchedList, row.latitude, row.longitude);
+            return new LocationStat(row.sector_name, city, row.sector_status, (int)row.incident_count, peopleList, searchedList, row.latitude, row.longitude);
         }).ToList();
     }
 
