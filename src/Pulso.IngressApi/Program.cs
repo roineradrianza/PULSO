@@ -9,6 +9,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Pulso.IngressApi.Endpoints;
 using Pulso.IngressApi.Serialization;
+using Pulso.IngressApi.Services;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateSlimBuilder(args);
@@ -23,6 +24,9 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 var redisConnectionString = builder.Configuration.GetConnectionString("UpstashRedis")
     ?? throw new InvalidOperationException("Falta la variable de configuración UpstashRedis.");
 builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));
+
+// Registro de servicios de datos (SOLID - Abstracción de base de datos)
+builder.Services.AddSingleton<ISituationRepository, SituationRepository>();
 
 // IP real del cliente: la API corre detrás de Caddy en el MISMO host, así que sin
 // esto toda petición se vería como loopback y el rate limit por IP sería inútil.

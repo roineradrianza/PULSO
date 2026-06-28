@@ -1,6 +1,6 @@
-using Npgsql;
 using Pulso.IngressApi.Common;
 using Pulso.IngressApi.Models;
+using Pulso.IngressApi.Services;
 using StackExchange.Redis;
 
 namespace Pulso.IngressApi.Endpoints;
@@ -47,108 +47,37 @@ public static class PulsoApiEndpoints
 
         // Situaciones georreferenciadas (payload LIVIANO, sin raw_text).
         // ?since=<ISO8601> -> carga incremental (delta); ?limit=N -> tope de filas; ?date=YYYY-MM-DD -> filtrar por día.
-        app.MapGet("/api/v1/pulso/situations", async (HttpRequest request, IConfiguration config) =>
+        app.MapGet("/api/v1/pulso/situations", async (HttpRequest request, ISituationRepository repo) =>
         {
-            var connStr = config.GetConnectionString("DefaultConnection");
-            var list = new List<SituationItem>();
-
             DateTimeOffset? since = DateTimeOffset.TryParse(request.Query["since"].ToString(), out var s) ? s : null;
             int limit = int.TryParse(request.Query["limit"].ToString(), out var l) ? Math.Clamp(l, 1, 2000) : 500;
             var dateStr = request.Query["date"].ToString();
-            var hasDate = !string.IsNullOrEmpty(dateStr);
 
             try
             {
-                await using var conn = new NpgsqlConnection(connStr);
-                await conn.OpenAsync();
-
-                var query = @"
-                    SELECT
-                        id,
-                        ai_category,
-                        severity::text,
-                        COALESCE(sector, '') as sector,
-                        ST_Y(coordinates::geometry) as latitude,
-                        ST_X(coordinates::geometry) as longitude,
-                        found_person_name,
-                        COALESCE(is_hardware_gps, false) as is_hardware_gps,
-                        (COALESCE(triage_provider, 'gemini') <> 'gemini') as needs_review,
-                        COALESCE(found_person_verified, false) as found_person_verified,
-                        created_at,
-                        affected_person_name,
-                        city
-                    FROM public.incidents
-                    WHERE status != 'DUPLICATE'"
-                    + (hasDate ? " AND created_at >= @utcStart AND created_at <= @utcEnd" : "")
-                    + (since.HasValue ? " AND created_at > @since" : "")
-                    + @"
-                    ORDER BY created_at DESC
-                    LIMIT @limit";
-
-                await using var cmd = new NpgsqlCommand(query, conn);
-                if (hasDate)
-                {
-                    var (utcStart, utcEnd) = GetUtcDateRange(dateStr);
-                    cmd.Parameters.AddWithValue("utcStart", utcStart);
-                    cmd.Parameters.AddWithValue("utcEnd", utcEnd);
-                }
-                if (since.HasValue) cmd.Parameters.AddWithValue("since", since.Value.UtcDateTime);
-                cmd.Parameters.AddWithValue("limit", limit);
-                await using var reader = await cmd.ExecuteReaderAsync();
-
-                while (await reader.ReadAsync())
-                {
-                    var id = reader.GetGuid(0).ToString();
-                    var category = reader.IsDBNull(1) ? "" : reader.GetString(1);
-                    var severity = reader.IsDBNull(2) ? "" : reader.GetString(2);
-                    var sector = reader.GetString(3);
-                    double? lat = reader.IsDBNull(4) ? null : reader.GetDouble(4);
-                    double? lng = reader.IsDBNull(5) ? null : reader.GetDouble(5);
-                    var personName = reader.IsDBNull(6) ? null : reader.GetString(6);
-                    var isHardwareGps = !reader.IsDBNull(7) && reader.GetBoolean(7);
-                    var needsReview = !reader.IsDBNull(8) && reader.GetBoolean(8);
-                    var foundPersonVerified = !reader.IsDBNull(9) && reader.GetBoolean(9);
-                    var createdAt = reader.GetDateTime(10);
-                    var affectedPersonName = reader.IsDBNull(11) ? null : reader.GetString(11);
-                    var city = reader.IsDBNull(12) ? null : reader.GetString(12);
-
-                    list.Add(new SituationItem(
-                        id, category, severity, sector, city, lat, lng,
-                        !string.IsNullOrEmpty(personName), personName, affectedPersonName,
-                        isHardwareGps, needsReview, foundPersonVerified, createdAt));
-                }
+                var list = await repo.GetSituationsAsync(since, limit, dateStr);
+                return Results.Ok(list);
             }
             catch (Exception ex)
             {
                 app.Logger.LogError(ex, "Error occurred while fetching situations.");
                 return Results.Problem("An error occurred while processing your request.");
             }
-
-            return Results.Ok(list);
         }).RequireRateLimiting("reads");
 
         // Detalle pesado de un incidente (raw_text), servido bajo demanda al abrir el popup.
-        app.MapGet("/api/v1/pulso/situations/{id}", async (string id, IConfiguration config) =>
+        app.MapGet("/api/v1/pulso/situations/{id}", async (string id, ISituationRepository repo) =>
         {
             if (!Guid.TryParse(id, out var guid))
                 return Results.BadRequest(new { error = "id inválido." });
 
-            var connStr = config.GetConnectionString("DefaultConnection");
             try
             {
-                await using var conn = new NpgsqlConnection(connStr);
-                await conn.OpenAsync();
-
-                await using var cmd = new NpgsqlCommand(
-                    "SELECT raw_text FROM public.incidents WHERE id = @id AND status != 'DUPLICATE'", conn);
-                cmd.Parameters.AddWithValue("id", guid);
-
-                await using var reader = await cmd.ExecuteReaderAsync();
-                if (!await reader.ReadAsync())
+                var detail = await repo.GetSituationDetailAsync(guid);
+                if (detail == null)
                     return Results.NotFound();
 
-                var rawText = reader.IsDBNull(0) ? "" : reader.GetString(0);
-                return Results.Ok(new SituationDetail(id, rawText));
+                return Results.Ok(detail);
             }
             catch (Exception ex)
             {
@@ -158,41 +87,17 @@ public static class PulsoApiEndpoints
         }).RequireRateLimiting("reads");
 
         // Obtener comentarios de un incidente (anónimos por diseño)
-        app.MapGet("/api/v1/pulso/situations/{id}/comments", async (string id, IConfiguration config) =>
+        app.MapGet("/api/v1/pulso/situations/{id}/comments", async (string id, ISituationRepository repo) =>
         {
             if (!Guid.TryParse(id, out var guid))
                 return Results.BadRequest(new { error = "id inválido." });
 
-            var connStr = config.GetConnectionString("DefaultConnection");
             try
             {
-                await using var conn = new NpgsqlConnection(connStr);
-                await conn.OpenAsync();
+                var list = await repo.GetCommentsAsync(guid);
+                if (list == null)
+                    return Results.NotFound(new { error = "Incidente no encontrado." });
 
-                // Validar existencia del incidente
-                await using (var checkCmd = new NpgsqlCommand("SELECT 1 FROM public.incidents WHERE id = @id", conn))
-                {
-                    checkCmd.Parameters.AddWithValue("id", guid);
-                    var exists = await checkCmd.ExecuteScalarAsync();
-                    if (exists == null)
-                        return Results.NotFound(new { error = "Incidente no encontrado." });
-                }
-
-                var list = new List<CommentDto>();
-                await using var cmd = new NpgsqlCommand(
-                    "SELECT id, incident_id, raw_text, created_at FROM public.comments WHERE incident_id = @id ORDER BY created_at ASC", conn);
-                cmd.Parameters.AddWithValue("id", guid);
-
-                await using var reader = await cmd.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    list.Add(new CommentDto(
-                        reader.GetGuid(0).ToString(),
-                        reader.GetGuid(1).ToString(),
-                        reader.GetString(2),
-                        reader.GetDateTime(3)
-                    ));
-                }
                 return Results.Ok(list);
             }
             catch (Exception ex)
@@ -203,7 +108,7 @@ public static class PulsoApiEndpoints
         }).RequireRateLimiting("reads");
 
         // Agregar un comentario a un incidente (anónimo, máximo 300 caracteres)
-        app.MapPost("/api/v1/pulso/situations/{id}/comments", async (string id, CreateCommentPayload payload, IConfiguration config) =>
+        app.MapPost("/api/v1/pulso/situations/{id}/comments", async (string id, CreateCommentPayload payload, ISituationRepository repo) =>
         {
             if (!Guid.TryParse(id, out var guid))
                 return Results.BadRequest(new { error = "id inválido." });
@@ -215,39 +120,13 @@ public static class PulsoApiEndpoints
             if (trimmedText.Length > 300)
                 return Results.BadRequest(new { error = "El comentario excede el límite de 300 caracteres." });
 
-            var connStr = config.GetConnectionString("DefaultConnection");
             try
             {
-                await using var conn = new NpgsqlConnection(connStr);
-                await conn.OpenAsync();
+                var newComment = await repo.CreateCommentAsync(guid, trimmedText);
+                if (newComment == null)
+                    return Results.NotFound(new { error = "Incidente no encontrado." });
 
-                // Validar existencia del incidente
-                await using (var checkCmd = new NpgsqlCommand("SELECT 1 FROM public.incidents WHERE id = @id", conn))
-                {
-                    checkCmd.Parameters.AddWithValue("id", guid);
-                    var exists = await checkCmd.ExecuteScalarAsync();
-                    if (exists == null)
-                        return Results.NotFound(new { error = "Incidente no encontrado." });
-                }
-
-                await using var cmd = new NpgsqlCommand(
-                    "INSERT INTO public.comments (incident_id, raw_text) VALUES (@incident_id, @raw_text) RETURNING id, created_at", conn);
-                cmd.Parameters.AddWithValue("incident_id", guid);
-                cmd.Parameters.AddWithValue("raw_text", trimmedText);
-
-                await using var reader = await cmd.ExecuteReaderAsync();
-                if (await reader.ReadAsync())
-                {
-                    var commentId = reader.GetGuid(0).ToString();
-                    var createdAt = reader.GetDateTime(1);
-                    return Results.Created($"/api/v1/pulso/situations/{id}/comments/{commentId}", new CommentDto(
-                        commentId,
-                        id,
-                        trimmedText,
-                        createdAt
-                    ));
-                }
-                return Results.Problem("No se pudo registrar el comentario.");
+                return Results.Created($"/api/v1/pulso/situations/{id}/comments/{newComment.Id}", newComment);
             }
             catch (Exception ex)
             {
@@ -257,31 +136,12 @@ public static class PulsoApiEndpoints
         }).RequireRateLimiting("writes");
 
         // Totales agregados para las tarjetas del dashboard (independientes del subconjunto cargado).
-        app.MapGet("/api/v1/pulso/summary", async (IConfiguration config) =>
+        app.MapGet("/api/v1/pulso/summary", async (ISituationRepository repo) =>
         {
-            var connStr = config.GetConnectionString("DefaultConnection");
             try
             {
-                await using var conn = new NpgsqlConnection(connStr);
-                await conn.OpenAsync();
-
-                var query = @"
-                    SELECT
-                        COUNT(*) FILTER (WHERE status != 'DUPLICATE') AS total,
-                        COUNT(*) FILTER (WHERE status != 'DUPLICATE' AND found_person_name IS NOT NULL) AS people,
-                        (SELECT COUNT(DISTINCT sector) FROM public.incidents
-                         WHERE status != 'DUPLICATE' AND sector IS NOT NULL AND sector != '' AND severity = 'CRITICAL') AS critical_sectors
-                    FROM public.incidents";
-
-                await using var cmd = new NpgsqlCommand(query, conn);
-                await using var reader = await cmd.ExecuteReaderAsync();
-                if (!await reader.ReadAsync())
-                    return Results.Ok(new SituationSummary(0, 0, 0));
-
-                return Results.Ok(new SituationSummary(
-                    (int)reader.GetInt64(0),
-                    (int)reader.GetInt64(1),
-                    (int)reader.GetInt64(2)));
+                var summary = await repo.GetSituationSummaryAsync();
+                return Results.Ok(summary);
             }
             catch (Exception ex)
             {
@@ -291,188 +151,34 @@ public static class PulsoApiEndpoints
         }).RequireRateLimiting("reads");
 
         // Obtener agregación de estatus consolidado por sector.
-        app.MapGet("/api/v1/pulso/locations/stats", async (HttpRequest request, IConfiguration config) =>
+        app.MapGet("/api/v1/pulso/locations/stats", async (HttpRequest request, ISituationRepository repo) =>
         {
-            var connStr = config.GetConnectionString("DefaultConnection");
             var dateStr = request.Query["date"].ToString();
-            var hasDate = !string.IsNullOrEmpty(dateStr);
-            var list = new List<LocationStat>();
-
             try
             {
-                await using var conn = new NpgsqlConnection(connStr);
-                await conn.OpenAsync();
-
-                var query = @"
-                    SELECT
-                        COALESCE(sector, 'Desconocido') as sector_name,
-                        COALESCE(city, '') as city_name,
-                        COUNT(*) as incident_count,
-                        CASE
-                            WHEN bool_or(severity = 'CRITICAL') THEN 'CRITICAL'
-                            WHEN bool_or(severity = 'HIGH') THEN 'HIGH'
-                            WHEN bool_or(severity = 'MEDIUM') THEN 'MEDIUM'
-                            ELSE 'LOW'
-                        END as sector_status,
-                        string_agg(found_person_name, ',') filter (where found_person_name is not null) as people_names,
-                        string_agg(affected_person_name, ',') filter (where affected_person_name is not null) as searched_names,
-                        AVG(ST_Y(coordinates::geometry)) as latitude,
-                        AVG(ST_X(coordinates::geometry)) as longitude
-                    FROM public.incidents
-                    WHERE status != 'DUPLICATE' AND sector IS NOT NULL AND sector != ''"
-                    + (hasDate ? " AND created_at >= @utcStart AND created_at <= @utcEnd" : "")
-                    + @"
-                    GROUP BY sector_name, city_name";
-
-                await using var cmd = new NpgsqlCommand(query, conn);
-                if (hasDate)
-                {
-                    var (utcStart, utcEnd) = GetUtcDateRange(dateStr);
-                    cmd.Parameters.AddWithValue("utcStart", utcStart);
-                    cmd.Parameters.AddWithValue("utcEnd", utcEnd);
-                }
-                await using var reader = await cmd.ExecuteReaderAsync();
-
-                while (await reader.ReadAsync())
-                {
-                    var sector = reader.GetString(0);
-                    var cityRaw = reader.IsDBNull(1) ? "" : reader.GetString(1);
-                    var count = (int)reader.GetInt64(2);
-                    var status = reader.GetString(3);
-                    var namesRaw = reader.IsDBNull(4) ? "" : reader.GetString(4);
-                    var searchedRaw = reader.IsDBNull(5) ? "" : reader.GetString(5);
-                    double? lat = reader.IsDBNull(6) ? null : reader.GetDouble(6);
-                    double? lng = reader.IsDBNull(7) ? null : reader.GetDouble(7);
-
-                    var peopleList = string.IsNullOrEmpty(namesRaw)
-                        ? new List<string>()
-                        : namesRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
-
-                    var searchedList = string.IsNullOrEmpty(searchedRaw)
-                        ? new List<string>()
-                        : searchedRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
-
-                    var city = string.IsNullOrEmpty(cityRaw) ? null : cityRaw;
-                    list.Add(new LocationStat(sector, city, status, count, peopleList, searchedList, lat, lng));
-                }
+                var stats = await repo.GetLocationStatsAsync(dateStr);
+                return Results.Ok(stats);
             }
             catch (Exception ex)
             {
                 app.Logger.LogError(ex, "Error occurred while fetching location statistics.");
                 return Results.Problem("An error occurred while processing your request.");
             }
-
-            return Results.Ok(list);
         }).RequireRateLimiting("reads");
 
         // Obtener métricas y analíticas del sistema
-        app.MapGet("/api/v1/pulso/metrics", async (IConfiguration config) =>
+        app.MapGet("/api/v1/pulso/metrics", async (ISituationRepository repo) =>
         {
-            var connStr = config.GetConnectionString("DefaultConnection");
-            
-            var engineStats = new Dictionary<string, int>();
-            var channelStats = new Dictionary<string, int>();
-            var hourlyDistribution = new List<MetricsHourItem>();
-            var peakHours = new List<MetricsHourItem>();
-
             try
             {
-                await using var conn = new NpgsqlConnection(connStr);
-                await conn.OpenAsync();
-
-                // 1. Distribución por Motor
-                var engineQuery = @"
-                    SELECT COALESCE(triage_provider, 'gemini') as provider, COUNT(*)::integer as count 
-                    FROM public.incidents 
-                    WHERE status != 'DUPLICATE'
-                    GROUP BY provider";
-                await using (var cmd = new NpgsqlCommand(engineQuery, conn))
-                await using (var reader = await cmd.ExecuteReaderAsync())
-                {
-                    while (await reader.ReadAsync())
-                    {
-                        engineStats[reader.GetString(0)] = reader.GetInt32(1);
-                    }
-                }
-
-                // 2. Distribución por Canal
-                var channelQuery = @"
-                    SELECT COALESCE(source_channel, 'unknown') as channel, COUNT(*)::integer as count 
-                    FROM public.incidents 
-                    WHERE status != 'DUPLICATE'
-                    GROUP BY channel";
-                await using (var cmd = new NpgsqlCommand(channelQuery, conn))
-                await using (var reader = await cmd.ExecuteReaderAsync())
-                {
-                    while (await reader.ReadAsync())
-                    {
-                        channelStats[reader.GetString(0)] = reader.GetInt32(1);
-                    }
-                }
-
-                // 3. Distribución por Hora (0-23)
-                var hourlyQuery = @"
-                    SELECT (EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Caracas'))::integer as hr, COUNT(*)::integer as count 
-                    FROM public.incidents 
-                    WHERE status != 'DUPLICATE'
-                    GROUP BY hr 
-                    ORDER BY hr ASC";
-                await using (var cmd = new NpgsqlCommand(hourlyQuery, conn))
-                await using (var reader = await cmd.ExecuteReaderAsync())
-                {
-                    var hourMap = new Dictionary<int, int>();
-                    while (await reader.ReadAsync())
-                    {
-                        hourMap[reader.GetInt32(0)] = reader.GetInt32(1);
-                    }
-                    for (int h = 0; h < 24; h++)
-                    {
-                        hourlyDistribution.Add(new MetricsHourItem(h, hourMap.TryGetValue(h, out var c) ? c : 0));
-                    }
-                }
-
-                // 4. Horas Pico (Top 3)
-                var peakQuery = @"
-                    SELECT (EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Caracas'))::integer as hr, COUNT(*)::integer as count 
-                    FROM public.incidents 
-                    WHERE status != 'DUPLICATE'
-                    GROUP BY hr 
-                    ORDER BY count DESC 
-                    LIMIT 3";
-                await using (var cmd = new NpgsqlCommand(peakQuery, conn))
-                await using (var reader = await cmd.ExecuteReaderAsync())
-                {
-                    while (await reader.ReadAsync())
-                    {
-                        peakHours.Add(new MetricsHourItem(reader.GetInt32(0), reader.GetInt32(1)));
-                    }
-                }
+                var metrics = await repo.GetSystemMetricsAsync();
+                return Results.Ok(metrics);
             }
             catch (Exception ex)
             {
                 app.Logger.LogError(ex, "Error occurred while fetching system metrics.");
                 return Results.Problem("An error occurred while processing your request.");
             }
-
-            return Results.Ok(new MetricsResponse(engineStats, channelStats, hourlyDistribution, peakHours));
         }).RequireRateLimiting("reads");
     }
-
-    private static (DateTime utcStart, DateTime utcEnd) GetUtcDateRange(string? dateStr)
-    {
-        var zone = TimeZoneInfo.FindSystemTimeZoneById("America/Caracas");
-        var nowInVet = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone);
-        
-        DateTime targetDate;
-        if (!DateTime.TryParse(dateStr, out targetDate))
-        {
-            targetDate = nowInVet.Date;
-        }
-        
-        var localStart = new DateTime(targetDate.Year, targetDate.Month, targetDate.Day, 0, 0, 0, DateTimeKind.Unspecified);
-        var localEnd = new DateTime(targetDate.Year, targetDate.Month, targetDate.Day, 23, 59, 59, DateTimeKind.Unspecified);
-        
-        return (TimeZoneInfo.ConvertTimeToUtc(localStart, zone), TimeZoneInfo.ConvertTimeToUtc(localEnd, zone));
-    }
 }
-
