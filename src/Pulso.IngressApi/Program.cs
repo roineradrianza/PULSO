@@ -26,6 +26,9 @@ var redisConnectionString = builder.Configuration.GetConnectionString("UpstashRe
 builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));
 
 // Registro de servicios de datos (SOLID - Abstracción de base de datos)
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Falta la variable de configuración DefaultConnection.");
+builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
 builder.Services.AddSingleton<ISituationRepository, SituationRepository>();
 
 // IP real del cliente: la API corre detrás de Caddy en el MISMO host, así que sin

@@ -1,3 +1,4 @@
+using Dapper;
 using Npgsql;
 using Pulso.IngressApi.Models;
 
@@ -5,37 +6,67 @@ namespace Pulso.IngressApi.Services;
 
 public sealed class SituationRepository : ISituationRepository
 {
-    private readonly string _connectionString;
+    private readonly NpgsqlDataSource _dataSource;
 
-    public SituationRepository(IConfiguration configuration)
+    public SituationRepository(NpgsqlDataSource dataSource)
     {
-        _connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Falta la variable de configuración DefaultConnection.");
+        _dataSource = dataSource;
     }
+
+    // --- Private Db Mapping Records (AOT-safe, eliminates DLR dynamic runtime binder) ---
+    private record DbSituationItem(
+        Guid Id,
+        string? AiCategory,
+        string? Severity,
+        string? Sector,
+        string? City,
+        double? Latitude,
+        double? Longitude,
+        string? FoundPersonName,
+        bool IsHardwareGps,
+        bool NeedsReview,
+        bool FoundPersonVerified,
+        DateTime CreatedAt,
+        string? AffectedPersonName);
+
+    private record DbCommentDto(Guid Id, Guid IncidentId, string RawText, DateTime CreatedAt);
+    private record DbCommentResult(Guid Id, DateTime CreatedAt);
+    private record DbSituationSummary(int Total, int People, int CriticalSectors);
+    
+    private record DbLocationStat(
+        string SectorName,
+        string? CityName,
+        int IncidentCount,
+        string SectorStatus,
+        string? PeopleNames,
+        string? SearchedNames,
+        double? Latitude,
+        double? Longitude);
+
+    private record DbEngineStat(string Provider, int Count);
+    private record DbChannelStat(string Channel, int Count);
+    private record DbMetricHour(int Hr, int Count);
 
     public async Task<List<SituationItem>> GetSituationsAsync(DateTimeOffset? since, int limit, string? dateStr)
     {
-        var list = new List<SituationItem>();
         var hasDate = !string.IsNullOrEmpty(dateStr);
-
-        await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync();
+        await using var conn = await _dataSource.OpenConnectionAsync();
 
         var query = @"
             SELECT
-                id,
-                ai_category,
-                severity::text,
-                COALESCE(sector, '') as sector,
-                ST_Y(coordinates::geometry) as latitude,
-                ST_X(coordinates::geometry) as longitude,
-                found_person_name,
-                COALESCE(is_hardware_gps, false) as is_hardware_gps,
-                (COALESCE(triage_provider, 'gemini') <> 'gemini') as needs_review,
-                COALESCE(found_person_verified, false) as found_person_verified,
-                created_at,
-                affected_person_name,
-                city
+                id as Id,
+                ai_category as AiCategory,
+                severity::text as Severity,
+                COALESCE(sector, '') as Sector,
+                city as City,
+                ST_Y(coordinates::geometry) as Latitude,
+                ST_X(coordinates::geometry) as Longitude,
+                found_person_name as FoundPersonName,
+                COALESCE(is_hardware_gps, false) as IsHardwareGps,
+                (COALESCE(triage_provider, 'gemini') <> 'gemini') as NeedsReview,
+                COALESCE(found_person_verified, false) as FoundPersonVerified,
+                created_at as CreatedAt,
+                affected_person_name as AffectedPersonName
             FROM public.incidents
             WHERE status != 'DUPLICATE'"
             + (hasDate ? " AND created_at >= @utcStart AND created_at <= @utcEnd" : "")
@@ -44,213 +75,161 @@ public sealed class SituationRepository : ISituationRepository
             ORDER BY created_at DESC
             LIMIT @limit";
 
-        await using var cmd = new NpgsqlCommand(query, conn);
+        object? parameters;
         if (hasDate)
         {
             var (utcStart, utcEnd) = GetUtcDateRange(dateStr);
-            cmd.Parameters.AddWithValue("utcStart", utcStart);
-            cmd.Parameters.AddWithValue("utcEnd", utcEnd);
+            parameters = new { utcStart, utcEnd, since = since?.UtcDateTime, limit };
         }
-        if (since.HasValue) cmd.Parameters.AddWithValue("since", since.Value.UtcDateTime);
-        cmd.Parameters.AddWithValue("limit", limit);
-
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        else
         {
-            var id = reader.GetGuid(0).ToString();
-            var category = reader.IsDBNull(1) ? "" : reader.GetString(1);
-            var severity = reader.IsDBNull(2) ? "" : reader.GetString(2);
-            var sector = reader.GetString(3);
-            double? lat = reader.IsDBNull(4) ? null : reader.GetDouble(4);
-            double? lng = reader.IsDBNull(5) ? null : reader.GetDouble(5);
-            var personName = reader.IsDBNull(6) ? null : reader.GetString(6);
-            var isHardwareGps = !reader.IsDBNull(7) && reader.GetBoolean(7);
-            var needsReview = !reader.IsDBNull(8) && reader.GetBoolean(8);
-            var foundPersonVerified = !reader.IsDBNull(9) && reader.GetBoolean(9);
-            var createdAt = reader.GetDateTime(10);
-            var affectedPersonName = reader.IsDBNull(11) ? null : reader.GetString(11);
-            var city = reader.IsDBNull(12) ? null : reader.GetString(12);
-
-            list.Add(new SituationItem(
-                id, category, severity, sector, city, lat, lng,
-                !string.IsNullOrEmpty(personName), personName, affectedPersonName,
-                isHardwareGps, needsReview, foundPersonVerified, createdAt));
+            parameters = new { since = since?.UtcDateTime, limit };
         }
 
-        return list;
+        var situations = await conn.QueryAsync<DbSituationItem>(query, parameters);
+        return situations.Select(row => new SituationItem(
+            row.Id.ToString(),
+            row.AiCategory ?? "",
+            row.Severity ?? "",
+            row.Sector ?? "",
+            row.City,
+            row.Latitude,
+            row.Longitude,
+            !string.IsNullOrEmpty(row.FoundPersonName),
+            row.FoundPersonName,
+            row.AffectedPersonName,
+            row.IsHardwareGps,
+            row.NeedsReview,
+            row.FoundPersonVerified,
+            row.CreatedAt)).ToList();
     }
 
     public async Task<SituationDetail?> GetSituationDetailAsync(Guid id)
     {
-        await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync();
+        await using var conn = await _dataSource.OpenConnectionAsync();
+        var rawText = await conn.QueryFirstOrDefaultAsync<string>(
+            "SELECT raw_text FROM public.incidents WHERE id = @id AND status != 'DUPLICATE'",
+            new { id });
 
-        await using var cmd = new NpgsqlCommand(
-            "SELECT raw_text FROM public.incidents WHERE id = @id AND status != 'DUPLICATE'", conn);
-        cmd.Parameters.AddWithValue("id", id);
-
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
-            return null;
-
-        var rawText = reader.IsDBNull(0) ? "" : reader.GetString(0);
+        if (rawText == null) return null;
         return new SituationDetail(id.ToString(), rawText);
     }
 
     public async Task<List<CommentDto>?> GetCommentsAsync(Guid incidentId)
     {
-        await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync();
+        await using var conn = await _dataSource.OpenConnectionAsync();
 
         // Validar existencia del incidente
-        await using (var checkCmd = new NpgsqlCommand("SELECT 1 FROM public.incidents WHERE id = @id", conn))
-        {
-            checkCmd.Parameters.AddWithValue("id", incidentId);
-            var exists = await checkCmd.ExecuteScalarAsync();
-            if (exists == null)
-                return null; // Indica que no se encontró el incidente
-        }
+        var exists = await conn.QueryFirstOrDefaultAsync<int?>(
+            "SELECT 1 FROM public.incidents WHERE id = @id", new { id = incidentId });
+        if (exists == null)
+            return null;
 
-        var list = new List<CommentDto>();
-        await using var cmd = new NpgsqlCommand(
-            "SELECT id, incident_id, raw_text, created_at FROM public.comments WHERE incident_id = @id ORDER BY created_at ASC", conn);
-        cmd.Parameters.AddWithValue("id", incidentId);
+        var comments = await conn.QueryAsync<DbCommentDto>(
+            @"SELECT 
+                id as Id, 
+                incident_id as IncidentId, 
+                raw_text as RawText, 
+                created_at as CreatedAt 
+             FROM public.comments 
+             WHERE incident_id = @id 
+             ORDER BY created_at ASC",
+            new { id = incidentId });
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            list.Add(new CommentDto(
-                reader.GetGuid(0).ToString(),
-                reader.GetGuid(1).ToString(),
-                reader.GetString(2),
-                reader.GetDateTime(3)
-            ));
-        }
-
-        return list;
+        return comments.Select(c => new CommentDto(
+            c.Id.ToString(),
+            c.IncidentId.ToString(),
+            c.RawText,
+            c.CreatedAt)).ToList();
     }
 
     public async Task<CommentDto?> CreateCommentAsync(Guid incidentId, string rawText)
     {
-        await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync();
+        await using var conn = await _dataSource.OpenConnectionAsync();
 
         // Validar existencia del incidente
-        await using (var checkCmd = new NpgsqlCommand("SELECT 1 FROM public.incidents WHERE id = @id", conn))
-        {
-            checkCmd.Parameters.AddWithValue("id", incidentId);
-            var exists = await checkCmd.ExecuteScalarAsync();
-            if (exists == null)
-                return null; // Indica que no se encontró el incidente
-        }
+        var exists = await conn.QueryFirstOrDefaultAsync<int?>(
+            "SELECT 1 FROM public.incidents WHERE id = @id", new { id = incidentId });
+        if (exists == null)
+            return null;
 
-        await using var cmd = new NpgsqlCommand(
-            "INSERT INTO public.comments (incident_id, raw_text) VALUES (@incident_id, @raw_text) RETURNING id, created_at", conn);
-        cmd.Parameters.AddWithValue("incident_id", incidentId);
-        cmd.Parameters.AddWithValue("raw_text", rawText);
+        var result = await conn.QuerySingleAsync<DbCommentResult>(
+            "INSERT INTO public.comments (incident_id, raw_text) VALUES (@incident_id, @raw_text) RETURNING id, created_at",
+            new { incident_id = incidentId, raw_text = rawText });
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
-        {
-            var commentId = reader.GetGuid(0).ToString();
-            var createdAt = reader.GetDateTime(1);
-            return new CommentDto(
-                commentId,
-                incidentId.ToString(),
-                rawText,
-                createdAt
-            );
-        }
-
-        return null;
+        return new CommentDto(
+            result.Id.ToString(),
+            incidentId.ToString(),
+            rawText,
+            result.CreatedAt
+        );
     }
 
     public async Task<SituationSummary> GetSituationSummaryAsync()
     {
-        await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync();
-
+        await using var conn = await _dataSource.OpenConnectionAsync();
         var query = @"
             SELECT
-                COUNT(*) FILTER (WHERE status != 'DUPLICATE') AS total,
-                COUNT(*) FILTER (WHERE status != 'DUPLICATE' AND found_person_name IS NOT NULL) AS people,
+                COUNT(*) FILTER (WHERE status != 'DUPLICATE') AS Total,
+                COUNT(*) FILTER (WHERE status != 'DUPLICATE' AND found_person_name IS NOT NULL) AS People,
                 (SELECT COUNT(DISTINCT sector) FROM public.incidents
-                 WHERE status != 'DUPLICATE' AND sector IS NOT NULL AND sector != '' AND severity = 'CRITICAL') AS critical_sectors
+                 WHERE status != 'DUPLICATE' AND sector IS NOT NULL AND sector != '' AND severity = 'CRITICAL') AS CriticalSectors
             FROM public.incidents";
 
-        await using var cmd = new NpgsqlCommand(query, conn);
-        await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
-            return new SituationSummary(0, 0, 0);
-
+        var result = await conn.QuerySingleAsync<DbSituationSummary>(query);
         return new SituationSummary(
-            (int)reader.GetInt64(0),
-            (int)reader.GetInt64(1),
-            (int)reader.GetInt64(2));
+            result.Total,
+            result.People,
+            result.CriticalSectors);
     }
 
     public async Task<List<LocationStat>> GetLocationStatsAsync(string? dateStr)
     {
         var hasDate = !string.IsNullOrEmpty(dateStr);
-        var list = new List<LocationStat>();
-
-        await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync();
+        await using var conn = await _dataSource.OpenConnectionAsync();
 
         var query = @"
             SELECT
-                COALESCE(sector, 'Desconocido') as sector_name,
-                COALESCE(city, '') as city_name,
-                COUNT(*) as incident_count,
+                COALESCE(sector, 'Desconocido') as SectorName,
+                COALESCE(city, '') as CityName,
+                COUNT(*) as IncidentCount,
                 CASE
                     WHEN bool_or(severity = 'CRITICAL') THEN 'CRITICAL'
                     WHEN bool_or(severity = 'HIGH') THEN 'HIGH'
                     WHEN bool_or(severity = 'MEDIUM') THEN 'MEDIUM'
                     ELSE 'LOW'
-                END as sector_status,
-                string_agg(found_person_name, ',') filter (where found_person_name is not null) as people_names,
-                string_agg(affected_person_name, ',') filter (where affected_person_name is not null) as searched_names,
-                AVG(ST_Y(coordinates::geometry)) as latitude,
-                AVG(ST_X(coordinates::geometry)) as longitude
+                END as SectorStatus,
+                string_agg(found_person_name, ',') filter (where found_person_name is not null) as PeopleNames,
+                string_agg(affected_person_name, ',') filter (where affected_person_name is not null) as SearchedNames,
+                AVG(ST_Y(coordinates::geometry)) as Latitude,
+                AVG(ST_X(coordinates::geometry)) as Longitude
             FROM public.incidents
             WHERE status != 'DUPLICATE' AND sector IS NOT NULL AND sector != ''"
             + (hasDate ? " AND created_at >= @utcStart AND created_at <= @utcEnd" : "")
             + @"
             GROUP BY sector_name, city_name";
 
-        await using var cmd = new NpgsqlCommand(query, conn);
+        object? parameters = null;
         if (hasDate)
         {
             var (utcStart, utcEnd) = GetUtcDateRange(dateStr);
-            cmd.Parameters.AddWithValue("utcStart", utcStart);
-            cmd.Parameters.AddWithValue("utcEnd", utcEnd);
+            parameters = new { utcStart, utcEnd };
         }
-        await using var reader = await cmd.ExecuteReaderAsync();
 
-        while (await reader.ReadAsync())
+        var stats = await conn.QueryAsync<DbLocationStat>(query, parameters);
+        return stats.Select(row =>
         {
-            var sector = reader.GetString(0);
-            var cityRaw = reader.IsDBNull(1) ? "" : reader.GetString(1);
-            var count = (int)reader.GetInt64(2);
-            var status = reader.GetString(3);
-            var namesRaw = reader.IsDBNull(4) ? "" : reader.GetString(4);
-            var searchedRaw = reader.IsDBNull(5) ? "" : reader.GetString(5);
-            double? lat = reader.IsDBNull(6) ? null : reader.GetDouble(6);
-            double? lng = reader.IsDBNull(7) ? null : reader.GetDouble(7);
-
-            var peopleList = string.IsNullOrEmpty(namesRaw)
+            var peopleList = string.IsNullOrEmpty(row.PeopleNames)
                 ? new List<string>()
-                : namesRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
+                : row.PeopleNames.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
 
-            var searchedList = string.IsNullOrEmpty(searchedRaw)
+            var searchedList = string.IsNullOrEmpty(row.SearchedNames)
                 ? new List<string>()
-                : searchedRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
+                : row.SearchedNames.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
 
-            var city = string.IsNullOrEmpty(cityRaw) ? null : cityRaw;
-            list.Add(new LocationStat(sector, city, status, count, peopleList, searchedList, lat, lng));
-        }
-
-        return list;
+            var city = string.IsNullOrEmpty(row.CityName) ? null : row.CityName;
+            return new LocationStat(row.SectorName, city, row.SectorStatus, row.IncidentCount, peopleList, searchedList, row.Latitude, row.Longitude);
+        }).ToList();
     }
 
     public async Task<MetricsResponse> GetSystemMetricsAsync()
@@ -260,75 +239,58 @@ public sealed class SituationRepository : ISituationRepository
         var hourlyDistribution = new List<MetricsHourItem>();
         var peakHours = new List<MetricsHourItem>();
 
-        await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync();
+        await using var conn = await _dataSource.OpenConnectionAsync();
 
         // 1. Distribución por Motor
         var engineQuery = @"
-            SELECT COALESCE(triage_provider, 'gemini') as provider, COUNT(*)::integer as count 
+            SELECT COALESCE(triage_provider, 'gemini') as Provider, COUNT(*)::integer as Count 
             FROM public.incidents 
             WHERE status != 'DUPLICATE'
-            GROUP BY provider";
-        await using (var cmd = new NpgsqlCommand(engineQuery, conn))
-        await using (var reader = await cmd.ExecuteReaderAsync())
+            GROUP BY Provider";
+        var engines = await conn.QueryAsync<DbEngineStat>(engineQuery);
+        foreach (var row in engines)
         {
-            while (await reader.ReadAsync())
-            {
-                engineStats[reader.GetString(0)] = reader.GetInt32(1);
-            }
+            engineStats[row.Provider] = row.Count;
         }
 
         // 2. Distribución por Canal
         var channelQuery = @"
-            SELECT COALESCE(source_channel, 'unknown') as channel, COUNT(*)::integer as count 
+            SELECT COALESCE(source_channel, 'unknown') as Channel, COUNT(*)::integer as Count 
             FROM public.incidents 
             WHERE status != 'DUPLICATE'
-            GROUP BY channel";
-        await using (var cmd = new NpgsqlCommand(channelQuery, conn))
-        await using (var reader = await cmd.ExecuteReaderAsync())
+            GROUP BY Channel";
+        var channels = await conn.QueryAsync<DbChannelStat>(channelQuery);
+        foreach (var row in channels)
         {
-            while (await reader.ReadAsync())
-            {
-                channelStats[reader.GetString(0)] = reader.GetInt32(1);
-            }
+            channelStats[row.Channel] = row.Count;
         }
 
         // 3. Distribución por Hora (0-23)
         var hourlyQuery = @"
-            SELECT (EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Caracas'))::integer as hr, COUNT(*)::integer as count 
+            SELECT (EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Caracas'))::integer as Hr, COUNT(*)::integer as Count 
             FROM public.incidents 
             WHERE status != 'DUPLICATE'
-            GROUP BY hr 
-            ORDER BY hr ASC";
-        await using (var cmd = new NpgsqlCommand(hourlyQuery, conn))
-        await using (var reader = await cmd.ExecuteReaderAsync())
+            GROUP BY Hr 
+            ORDER BY Hr ASC";
+        var hourly = await conn.QueryAsync<DbMetricHour>(hourlyQuery);
+        var hourMap = hourly.ToDictionary(row => row.Hr, row => row.Count);
+        for (int h = 0; h < 24; h++)
         {
-            var hourMap = new Dictionary<int, int>();
-            while (await reader.ReadAsync())
-            {
-                hourMap[reader.GetInt32(0)] = reader.GetInt32(1);
-            }
-            for (int h = 0; h < 24; h++)
-            {
-                hourlyDistribution.Add(new MetricsHourItem(h, hourMap.TryGetValue(h, out var c) ? c : 0));
-            }
+            hourlyDistribution.Add(new MetricsHourItem(h, hourMap.TryGetValue(h, out var c) ? c : 0));
         }
 
         // 4. Horas Pico (Top 3)
         var peakQuery = @"
-            SELECT (EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Caracas'))::integer as hr, COUNT(*)::integer as count 
+            SELECT (EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Caracas'))::integer as Hr, COUNT(*)::integer as Count 
             FROM public.incidents 
             WHERE status != 'DUPLICATE'
-            GROUP BY hr 
-            ORDER BY count DESC 
+            GROUP BY Hr 
+            ORDER BY Count DESC 
             LIMIT 3";
-        await using (var cmd = new NpgsqlCommand(peakQuery, conn))
-        await using (var reader = await cmd.ExecuteReaderAsync())
+        var peaks = await conn.QueryAsync<DbMetricHour>(peakQuery);
+        foreach (var row in peaks)
         {
-            while (await reader.ReadAsync())
-            {
-                peakHours.Add(new MetricsHourItem(reader.GetInt32(0), reader.GetInt32(1)));
-            }
+            peakHours.Add(new MetricsHourItem(row.Hr, row.Count));
         }
 
         return new MetricsResponse(engineStats, channelStats, hourlyDistribution, peakHours);
