@@ -323,7 +323,7 @@
   function makeMarker(sit) {
     const marker = L.marker([sit.latitude, sit.longitude], { icon: buildIcon(sit) });
     // bindPopup con función => contenido (y descarga lazy) solo al abrir.
-    marker.bindPopup(() => buildPopup(sit), { minWidth: 260, maxWidth: 320 });
+    marker.bindPopup(() => buildPopup(sit), { minWidth: 260, maxWidth: 320, maxHeight: 260 });
     // Severidad accesible para colorear el cluster.
     marker.pulsoSeverity = sit.severity;
     return marker;
@@ -351,7 +351,7 @@
         existing.marker.setLatLng([sit.latitude, sit.longitude]);
         existing.marker.setIcon(buildIcon(sit));
         existing.marker.pulsoSeverity = sit.severity;
-        existing.marker.bindPopup(() => buildPopup(sit), { minWidth: 260, maxWidth: 320 });
+        existing.marker.bindPopup(() => buildPopup(sit), { minWidth: 260, maxWidth: 320, maxHeight: 260 });
         existing.sig = sig;
         detailCache.delete(sit.id);
       }
@@ -465,5 +465,24 @@
   :global(.pulso-cluster-icon:hover > div) {
     transform: scale(1.1);
     transition: transform 0.15s ease-out;
+  }
+  :global(.leaflet-popup-content) {
+    overflow-y: auto !important;
+    padding-right: 6px !important;
+    box-sizing: border-box;
+  }
+  :global(.leaflet-popup-content::-webkit-scrollbar) {
+    width: 4px;
+  }
+  :global(.leaflet-popup-content::-webkit-scrollbar-track) {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+  }
+  :global(.leaflet-popup-content::-webkit-scrollbar-thumb) {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+  }
+  :global(.leaflet-popup-content::-webkit-scrollbar-thumb:hover) {
+    background: rgba(255, 255, 255, 0.3);
   }
 </style>
