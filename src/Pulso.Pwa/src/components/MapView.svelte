@@ -121,7 +121,15 @@
       : (sit.sector || 'Desconocido');
     place.textContent = `Lugar: ${placeLabel}`;
     const date = document.createElement('div');
-    date.textContent = `Fecha: ${new Date(sit.created_at).toLocaleString('es-VE', { timeZone: 'America/Caracas' })}`;
+    date.textContent = `Fecha: ${new Date(sit.created_at).toLocaleString('es-VE', {
+      timeZone: 'America/Caracas',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    })}`;
     meta.append(place, date);
     if (sit.found_person_name) {
       const name = document.createElement('div');
