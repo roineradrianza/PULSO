@@ -116,7 +116,10 @@
     const meta = document.createElement('div');
     meta.style.cssText = 'font-size: 11px; color: var(--text-muted);';
     const place = document.createElement('div');
-    place.textContent = `Lugar: ${sit.sector || 'Desconocido'}`;
+    const placeLabel = sit.city
+      ? `${sit.city}, ${sit.sector || 'Desconocido'}`
+      : (sit.sector || 'Desconocido');
+    place.textContent = `Lugar: ${placeLabel}`;
     const date = document.createElement('div');
     date.textContent = `Fecha: ${new Date(sit.created_at).toLocaleString('es-VE', { timeZone: 'America/Caracas' })}`;
     meta.append(place, date);

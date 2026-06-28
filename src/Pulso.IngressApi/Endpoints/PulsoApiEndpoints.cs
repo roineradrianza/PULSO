@@ -75,7 +75,8 @@ public static class PulsoApiEndpoints
                         (COALESCE(triage_provider, 'gemini') <> 'gemini') as needs_review,
                         COALESCE(found_person_verified, false) as found_person_verified,
                         created_at,
-                        affected_person_name
+                        affected_person_name,
+                        city
                     FROM public.incidents
                     WHERE status != 'DUPLICATE'"
                     + (hasDate ? " AND created_at >= @utcStart AND created_at <= @utcEnd" : "")
@@ -109,9 +110,10 @@ public static class PulsoApiEndpoints
                     var foundPersonVerified = !reader.IsDBNull(9) && reader.GetBoolean(9);
                     var createdAt = reader.GetDateTime(10);
                     var affectedPersonName = reader.IsDBNull(11) ? null : reader.GetString(11);
+                    var city = reader.IsDBNull(12) ? null : reader.GetString(12);
 
                     list.Add(new SituationItem(
-                        id, category, severity, sector, lat, lng,
+                        id, category, severity, sector, city, lat, lng,
                         !string.IsNullOrEmpty(personName), personName, affectedPersonName,
                         isHardwareGps, needsReview, foundPersonVerified, createdAt));
                 }
@@ -205,6 +207,7 @@ public static class PulsoApiEndpoints
                 var query = @"
                     SELECT
                         COALESCE(sector, 'Desconocido') as sector_name,
+                        COALESCE(city, '') as city_name,
                         COUNT(*) as incident_count,
                         CASE
                             WHEN bool_or(severity = 'CRITICAL') THEN 'CRITICAL'
@@ -220,7 +223,7 @@ public static class PulsoApiEndpoints
                     WHERE status != 'DUPLICATE' AND sector IS NOT NULL AND sector != ''"
                     + (hasDate ? " AND created_at >= @utcStart AND created_at <= @utcEnd" : "")
                     + @"
-                    GROUP BY sector_name";
+                    GROUP BY sector_name, city_name";
 
                 await using var cmd = new NpgsqlCommand(query, conn);
                 if (hasDate)
@@ -234,12 +237,13 @@ public static class PulsoApiEndpoints
                 while (await reader.ReadAsync())
                 {
                     var sector = reader.GetString(0);
-                    var count = (int)reader.GetInt64(1);
-                    var status = reader.GetString(2);
-                    var namesRaw = reader.IsDBNull(3) ? "" : reader.GetString(3);
-                    var searchedRaw = reader.IsDBNull(4) ? "" : reader.GetString(4);
-                    double? lat = reader.IsDBNull(5) ? null : reader.GetDouble(5);
-                    double? lng = reader.IsDBNull(6) ? null : reader.GetDouble(6);
+                    var cityRaw = reader.IsDBNull(1) ? "" : reader.GetString(1);
+                    var count = (int)reader.GetInt64(2);
+                    var status = reader.GetString(3);
+                    var namesRaw = reader.IsDBNull(4) ? "" : reader.GetString(4);
+                    var searchedRaw = reader.IsDBNull(5) ? "" : reader.GetString(5);
+                    double? lat = reader.IsDBNull(6) ? null : reader.GetDouble(6);
+                    double? lng = reader.IsDBNull(7) ? null : reader.GetDouble(7);
 
                     var peopleList = string.IsNullOrEmpty(namesRaw)
                         ? new List<string>()
@@ -249,7 +253,8 @@ public static class PulsoApiEndpoints
                         ? new List<string>()
                         : searchedRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
 
-                    list.Add(new LocationStat(sector, status, count, peopleList, searchedList, lat, lng));
+                    var city = string.IsNullOrEmpty(cityRaw) ? null : cityRaw;
+                    list.Add(new LocationStat(sector, city, status, count, peopleList, searchedList, lat, lng));
                 }
             }
             catch (Exception ex)

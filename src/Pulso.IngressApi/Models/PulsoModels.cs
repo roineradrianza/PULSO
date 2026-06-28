@@ -25,6 +25,7 @@ public record SituationItem(
     [property: JsonPropertyName("category")] string Category,
     [property: JsonPropertyName("severity")] string Severity,
     [property: JsonPropertyName("sector")] string Sector,
+    [property: JsonPropertyName("city")] string? City,
     [property: JsonPropertyName("latitude")] double? Latitude,
     [property: JsonPropertyName("longitude")] double? Longitude,
     [property: JsonPropertyName("is_person_found")] bool IsPersonFound,
@@ -56,6 +57,7 @@ public record SituationSummary(
 
 public record LocationStat(
     [property: JsonPropertyName("sector")] string Sector,
+    [property: JsonPropertyName("city")] string? City,
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("incident_count")] int IncidentCount,
     [property: JsonPropertyName("people_found")] List<string> PeopleFound,

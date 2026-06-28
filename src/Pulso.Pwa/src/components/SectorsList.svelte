@@ -5,15 +5,20 @@
 
   const laGuairaSectors = ['Maiquetía', 'La Guaira', 'Macuto', 'Caraballeda', 'Naiguatá', 'Catia La Mar'];
 
-  function getSectorLabel(sector) {
-    if (laGuairaSectors.includes(sector)) {
-      return `La Guaira, ${sector}`;
+  function getSectorLabel(stat) {
+    // Si la IA infirió la ciudad, usarla (plataforma nacional: no asumir Caracas).
+    if (stat.city) {
+      return `${stat.city}, ${stat.sector}`;
     }
-    return `Caracas, ${sector}`;
+    // Respaldo para reportes sin ciudad (datos previos): heurística de La Guaira; si no, Caracas.
+    if (laGuairaSectors.includes(stat.sector)) {
+      return `La Guaira, ${stat.sector}`;
+    }
+    return `Caracas, ${stat.sector}`;
   }
 
   $: filtered = $sectorStats.filter((stat) => {
-    const label = getSectorLabel(stat.sector).toLowerCase();
+    const label = getSectorLabel(stat).toLowerCase();
     const queryLower = query.toLowerCase().trim();
     return label.includes(queryLower) ||
       stat.people_found.some((p) => p.toLowerCase().includes(queryLower)) ||
@@ -99,7 +104,7 @@
           <div>
             <div class="sector-name">
               <span class="status-dot {stat.status.toLowerCase()}"></span>
-              {getSectorLabel(stat.sector)}
+              {getSectorLabel(stat)}
             </div>
             {#if stat.people_found.length > 0}
               <div class="sector-people-container">
