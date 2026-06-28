@@ -1,0 +1,56 @@
+name: Pull Request Integrity Check
+
+on:
+  pull_request:
+    branches:
+      - stage
+      - main
+    paths:
+      - 'src/**'
+
+jobs:
+  verify:
+    name: Build Verification (PWA & .NET Backends)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 1. Verify .NET Backend Compilation
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore Backend Dependencies
+        run: |
+          dotnet restore src/Pulso.IngressApi/Pulso.IngressApi.csproj
+          dotnet restore src/Pulso.AiWorker/Pulso.AiWorker.csproj
+
+      - name: Verify API Compilation
+        run: dotnet build src/Pulso.IngressApi/Pulso.IngressApi.csproj --no-restore -c Release
+
+      - name: Verify AI Worker Compilation
+        run: dotnet build src/Pulso.AiWorker/Pulso.AiWorker.csproj --no-restore -c Release
+
+      # 2. Verify PWA Frontend Compilation
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: src/Pulso.Pwa/pnpm-lock.yaml
+
+      - name: Install PWA Dependencies
+        working-directory: src/Pulso.Pwa
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify PWA Compilation
+        working-directory: src/Pulso.Pwa
+        run: pnpm build
