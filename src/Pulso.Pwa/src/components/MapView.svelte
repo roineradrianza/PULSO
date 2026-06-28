@@ -261,18 +261,42 @@
 </script>
 
 <div class="card" style="padding: 20px;">
-  <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 4px;">
+  <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 10px;">
     Mapa de Situación en Tiempo Real
   </h2>
-  <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-    <span>📌</span> Toca un punto en el mapa o un sector en el listado para ver los detalles del reporte.
-  </p>
+  <div class="map-info-panel">
+    <span class="info-pin">📌</span>
+    <p class="info-text">
+      Toca un punto en el mapa o un sector en el listado para ver los detalles del reporte.
+    </p>
+  </div>
   <div class="map-container">
     <div bind:this={mapEl} id="map"></div>
   </div>
 </div>
 
 <style>
+  .map-info-panel {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(30, 41, 59, 0.45);
+    border-left: 3px solid var(--info-blue);
+    border-radius: 6px;
+    margin-bottom: 14px;
+  }
+  .info-pin {
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .info-text {
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: var(--text-main);
+    margin: 0;
+    font-weight: 500;
+  }
   :global(.custom-marker-icon) {
     cursor: pointer !important;
   }
