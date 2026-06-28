@@ -72,23 +72,47 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
             TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver()
         };
 
-        // Configuración para inyectar descripciones de los atributos [Description] en el JSON Schema
+        // Configuración para inyectar descripciones y normalizar tipos para Gemini
         var exporterOptions = new JsonSchemaExporterOptions
         {
             TransformSchemaNode = (context, schema) =>
             {
-                var attributeProvider = context.PropertyInfo is not null 
-                    ? context.PropertyInfo.AttributeProvider 
-                    : context.TypeInfo.Type;
-
-                var descriptionAttr = attributeProvider?
-                    .GetCustomAttributes(inherit: true)
-                    .OfType<DescriptionAttribute>()
-                    .FirstOrDefault();
-
-                if (descriptionAttr != null && schema is JsonObject jObj)
+                if (schema is JsonObject jObj)
                 {
-                    jObj["description"] = descriptionAttr.Description;
+                    // Normalizar el tipo a un string único y en mayúsculas compatible con Gemini (Proto field no repetido)
+                    if (jObj.TryGetPropertyValue("type", out var typeNode))
+                    {
+                        if (typeNode is JsonArray typeArray)
+                        {
+                            var primaryType = typeArray
+                                .Select(n => n?.GetValue<string>())
+                                .FirstOrDefault(t => t != "null" && t != null);
+
+                            if (primaryType != null)
+                            {
+                                jObj["type"] = JsonValue.Create(primaryType.ToUpperInvariant());
+                            }
+                        }
+                        else if (typeNode is JsonValue typeVal && typeVal.TryGetValue<string>(out var singleType))
+                        {
+                            jObj["type"] = JsonValue.Create(singleType.ToUpperInvariant());
+                        }
+                    }
+
+                    // Inyectar descripciones de los atributos [Description]
+                    var attributeProvider = context.PropertyInfo is not null 
+                        ? context.PropertyInfo.AttributeProvider 
+                        : context.TypeInfo.Type;
+
+                    var descriptionAttr = attributeProvider?
+                        .GetCustomAttributes(inherit: true)
+                        .OfType<DescriptionAttribute>()
+                        .FirstOrDefault();
+
+                    if (descriptionAttr != null)
+                    {
+                        jObj["description"] = descriptionAttr.Description;
+                    }
                 }
 
                 return schema;
