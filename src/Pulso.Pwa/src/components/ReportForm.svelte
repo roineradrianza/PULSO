@@ -7,7 +7,7 @@
 
   const dispatch = createEventDispatcher();
 
-  let phone = '584120000000';
+  let phone = '';
   let declaredLocation = '';
   let reportDetails = '';
 
@@ -120,7 +120,7 @@
   <form on:submit|preventDefault={submit}>
     <div class="form-group" style="margin-bottom: 12px;">
       <label for="phone">Su número de teléfono</label>
-      <input id="phone" type="tel" placeholder="Ejemplo: 0412-1234567" required bind:value={phone} />
+      <input id="phone" type="tel" placeholder="Ejemplo: +584121234567" required bind:value={phone} />
     </div>
 
     <div class="form-group" style="margin-bottom: 12px;">

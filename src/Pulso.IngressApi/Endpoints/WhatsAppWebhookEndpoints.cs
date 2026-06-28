@@ -21,7 +21,10 @@ public static class WhatsAppWebhookEndpoints
             var challenge = request.Query["hub.challenge"].ToString();
             var verifyToken = config["WhatsApp:VerifyToken"];
 
-            if (mode == "subscribe" && !string.IsNullOrEmpty(verifyToken) && token == verifyToken)
+            if (mode == "subscribe" && 
+                !string.IsNullOrEmpty(verifyToken) && 
+                verifyToken != "placeholder" && 
+                token == verifyToken)
             {
                 // Eco del challenge como texto plano (200) para completar la verificación.
                 return Results.Text(challenge);
@@ -42,16 +45,15 @@ public static class WhatsAppWebhookEndpoints
 
             // 1. Validar X-Hub-Signature-256 (HMAC-SHA256 del cuerpo crudo con el App Secret).
             var appSecret = config["WhatsApp:AppSecret"];
-            if (!string.IsNullOrEmpty(appSecret))
+            if (string.IsNullOrEmpty(appSecret) || appSecret == "placeholder")
             {
-                if (!VerifyWhatsAppSignature(rawBytes, request.Headers["X-Hub-Signature-256"].ToString(), appSecret))
-                {
-                    return Results.StatusCode(StatusCodes.Status403Forbidden);
-                }
+                app.Logger.LogError("WhatsApp:AppSecret no configurado. Webhook rechazado por seguridad (Fail-Closed).");
+                return Results.StatusCode(StatusCodes.Status401Unauthorized);
             }
-            else
+
+            if (!VerifyWhatsAppSignature(rawBytes, request.Headers["X-Hub-Signature-256"].ToString(), appSecret))
             {
-                app.Logger.LogWarning("WhatsApp:AppSecret no configurado: el webhook acepta solicitudes sin validar firma.");
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
             }
 
             WhatsAppWebhook? hook;

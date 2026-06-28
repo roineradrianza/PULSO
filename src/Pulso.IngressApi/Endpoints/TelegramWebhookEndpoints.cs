@@ -15,18 +15,17 @@ public static class TelegramWebhookEndpoints
         {
             // 1. Autenticar con el secret token de setWebhook (header X-Telegram-Bot-Api-Secret-Token).
             var expectedSecret = config["Telegram:SecretToken"];
-            if (!string.IsNullOrEmpty(expectedSecret))
+            if (string.IsNullOrEmpty(expectedSecret) || expectedSecret == "placeholder")
             {
-                var provided = Encoding.UTF8.GetBytes(request.Headers["X-Telegram-Bot-Api-Secret-Token"].ToString());
-                var expected = Encoding.UTF8.GetBytes(expectedSecret);
-                if (provided.Length != expected.Length || !CryptographicOperations.FixedTimeEquals(provided, expected))
-                {
-                    return Results.StatusCode(StatusCodes.Status403Forbidden);
-                }
+                app.Logger.LogError("Telegram:SecretToken no configurado. Webhook rechazado por seguridad (Fail-Closed).");
+                return Results.StatusCode(StatusCodes.Status401Unauthorized);
             }
-            else
+
+            var provided = Encoding.UTF8.GetBytes(request.Headers["X-Telegram-Bot-Api-Secret-Token"].ToString());
+            var expected = Encoding.UTF8.GetBytes(expectedSecret);
+            if (provided.Length != expected.Length || !CryptographicOperations.FixedTimeEquals(provided, expected))
             {
-                app.Logger.LogWarning("Telegram:SecretToken no configurado: el webhook acepta solicitudes sin autenticar.");
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
             }
 
             var msg = update.Message;
