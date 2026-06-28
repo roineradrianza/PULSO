@@ -28,4 +28,8 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pulso.Shared\Pulso.Shared.csproj" />
+  </ItemGroup>
 </Project>

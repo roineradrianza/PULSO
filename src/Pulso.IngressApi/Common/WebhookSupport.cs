@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using Pulso.IngressApi.Models;
 using Pulso.IngressApi.Serialization;
+using Pulso.Shared;
 using StackExchange.Redis;
 
 namespace Pulso.IngressApi.Common;
@@ -16,11 +17,6 @@ public static class WebhookSupport
     // en vez de sondear la cola. Es solo un aviso (best-effort); la cola sigue siendo
     // la fuente de verdad de la entrega.
     public const string WakeChannel = "pulso:queue:wake";
-
-    // Caja delimitadora aproximada del territorio de Venezuela.
-    // Se usa para descartar coordenadas falsas/maliciosas fuera del país.
-    public static bool IsOutsideVenezuela(double lat, double lng)
-        => lat < 0.0 || lat > 16.0 || lng < -74.0 || lng > -59.0;
 
     // Serializa el payload con el contexto source-gen y lo encola.
     // Inyecta el contexto de traza actual (W3C traceparent del request del webhook)

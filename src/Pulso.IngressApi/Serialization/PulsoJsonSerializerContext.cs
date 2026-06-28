@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Pulso.IngressApi.Models;
+using Pulso.Shared;
 
 namespace Pulso.IngressApi.Serialization;
 

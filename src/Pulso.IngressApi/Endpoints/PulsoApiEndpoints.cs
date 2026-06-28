@@ -1,6 +1,7 @@
 using Pulso.IngressApi.Common;
 using Pulso.IngressApi.Models;
 using Pulso.IngressApi.Services;
+using Pulso.Shared;
 using StackExchange.Redis;
 
 namespace Pulso.IngressApi.Endpoints;
@@ -26,7 +27,7 @@ public static class PulsoApiEndpoints
 
             // Mitigación: descartar geolocalizaciones fuera de Venezuela.
             if (payload.Latitude.HasValue && payload.Longitude.HasValue &&
-                WebhookSupport.IsOutsideVenezuela(payload.Latitude.Value, payload.Longitude.Value))
+                GeoConstants.IsOutsideVenezuela(payload.Latitude.Value, payload.Longitude.Value))
             {
                 return Results.BadRequest(new { error = "Las coordenadas geográficas se encuentran fuera del territorio nacional (Venezuela)." });
             }

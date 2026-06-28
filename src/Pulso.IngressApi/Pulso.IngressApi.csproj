@@ -20,4 +20,8 @@
     <PackageReference Include="StackExchange.Redis" Version="3.0.7" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Pulso.Shared\Pulso.Shared.csproj" />
+  </ItemGroup>
+
 </Project>

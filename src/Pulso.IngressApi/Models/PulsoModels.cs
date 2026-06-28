@@ -4,20 +4,7 @@ namespace Pulso.IngressApi.Models;
 
 // Estructuras de transferencia de datos del dominio PULSO.
 
-public record PulsoPayload(
-    [property: JsonPropertyName("message_id")] string MessageId,
-    [property: JsonPropertyName("phone")] string Phone,
-    [property: JsonPropertyName("channel")] string Channel, // 'whatsapp', 'telegram', 'pwa'
-    [property: JsonPropertyName("text_body")] string TextBody,
-    [property: JsonPropertyName("media_url")] string? MediaUrl,
-    [property: JsonPropertyName("media_type")] string? MediaType,
-    [property: JsonPropertyName("media_file_id")] string? MediaFileId,
-    [property: JsonPropertyName("latitude")] double? Latitude,
-    [property: JsonPropertyName("longitude")] double? Longitude,
-    // Contexto de traza (W3C traceparent) inyectado al encolar para enlazar la traza
-    // del webhook con el procesamiento del worker a través de la cola Redis.
-    [property: JsonPropertyName("traceparent")] string? TraceParent = null
-);
+
 
 // Ítem liviano para el mapa/lista: NO incluye raw_text (se trae bajo demanda).
 public record SituationItem(

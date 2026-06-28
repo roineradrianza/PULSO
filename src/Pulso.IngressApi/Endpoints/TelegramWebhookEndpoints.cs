@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Pulso.IngressApi.Common;
 using Pulso.IngressApi.Models;
+using Pulso.Shared;
 using StackExchange.Redis;
 
 namespace Pulso.IngressApi.Endpoints;

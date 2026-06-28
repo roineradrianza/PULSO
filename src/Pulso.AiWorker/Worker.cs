@@ -57,14 +57,6 @@ public class Worker : BackgroundService
         "• \"Hay una persona atrapada en un derrumbe en Petare\"\n" +
         "• Se necesitan insumos en catia en la calle XXXX";
 
-    // Límite geográfico de Venezuela (bounding box).
-    // Coordenadas fuera de este rectángulo se descartan para evitar el
-    // envenenamiento del mapa con ubicaciones falsas de otros países.
-    private const double VenLatMin  =   0.0;
-    private const double VenLatMax  =  16.0;
-    private const double VenLngMin  = -74.0;
-    private const double VenLngMax  = -59.0;
-
     private readonly ILogger<Worker>          _logger;
     private readonly IConnectionMultiplexer   _redis;
     private readonly IGeminiTriageService     _geminiTriage;
@@ -455,8 +447,7 @@ public class Worker : BackgroundService
         if (!lat.HasValue || !lng.HasValue)
             return (null, null);
 
-        if (lat.Value < VenLatMin || lat.Value > VenLatMax ||
-            lng.Value < VenLngMin || lng.Value > VenLngMax)
+        if (GeoConstants.IsOutsideVenezuela(lat.Value, lng.Value))
         {
             _logger.LogWarning(
                 "Discarded incoming coordinates outside Venezuela boundary: Lat {lat}, Lng {lng}",

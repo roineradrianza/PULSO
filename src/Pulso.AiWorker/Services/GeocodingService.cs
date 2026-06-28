@@ -12,8 +12,7 @@ namespace Pulso.AiWorker.Services;
 /// </summary>
 public sealed class GeocodingService : IGeocodingService
 {
-    // Caja delimitadora aproximada de Venezuela (igual criterio que el resto del sistema).
-    private const double VenLatMin = 0.0, VenLatMax = 16.0, VenLngMin = -74.0, VenLngMax = -59.0;
+
 
     private const string CachePrefix = "pulso:geocode:";
     private const string MissSentinel = "MISS";
@@ -74,7 +73,7 @@ public sealed class GeocodingService : IGeocodingService
     }
 
     private static bool IsInsideVenezuela(double lat, double lng)
-        => lat >= VenLatMin && lat <= VenLatMax && lng >= VenLngMin && lng <= VenLngMax;
+        => !GeoConstants.IsOutsideVenezuela(lat, lng);
 
     private static string FormatCache(GeoResult r)
         => string.Format(CultureInfo.InvariantCulture, "{0};{1};{2}", r.Latitude, r.Longitude, r.Provider);

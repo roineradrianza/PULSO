@@ -4,6 +4,7 @@ using System.Text.Json;
 using Pulso.IngressApi.Common;
 using Pulso.IngressApi.Models;
 using Pulso.IngressApi.Serialization;
+using Pulso.Shared;
 using StackExchange.Redis;
 
 namespace Pulso.IngressApi.Endpoints;
