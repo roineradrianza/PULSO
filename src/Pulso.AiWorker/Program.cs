@@ -29,13 +29,16 @@ builder.Services.AddHttpClient("nominatim", client =>
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 
-// Cliente del geocodificador LLM: timeout acotado para no estancar el worker si Gemini tarda.
-builder.Services.AddHttpClient(nameof(LlmGeocodingProvider), client =>
+// Cliente del LLM estructurado (Gemini): timeout acotado para no estancar el worker si tarda.
+builder.Services.AddHttpClient(nameof(GeminiStructuredClient), client =>
 {
     client.Timeout = TimeSpan.FromSeconds(15);
 });
 
 // ── Servicios de dominio ──────────────────────────────────────────────────────
+// Cliente LLM abstracto (hoy Gemini): lo consume el geocodificador por LLM, desacoplado
+// del proveedor concreto. Para cambiar de LLM, reemplazar solo esta línea.
+builder.Services.AddSingleton<ILlmStructuredClient,    GeminiStructuredClient>();
 builder.Services.AddSingleton<IGeminiTriageService,    GeminiTriageService>();
 builder.Services.AddSingleton<IMediaDownloadService,   MediaDownloadService>();
 builder.Services.AddSingleton<IIncidentRepository,     IncidentRepository>();
