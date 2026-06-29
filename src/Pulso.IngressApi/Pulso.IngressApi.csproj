@@ -24,4 +24,9 @@
     <ProjectReference Include="..\Pulso.Shared\Pulso.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- OpenAPI 3.1 escrito a mano, embebido para servirlo sin middleware de estáticos. -->
+    <EmbeddedResource Include="openapi\v1\openapi.yaml" />
+  </ItemGroup>
+
 </Project>

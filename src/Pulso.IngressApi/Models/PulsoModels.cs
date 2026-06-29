@@ -79,4 +79,63 @@ public record CreateCommentPayload(
     [property: JsonPropertyName("rawText")] string RawText
 );
 
+// ── Open Data API (contrato público y estable, separado de la PWA) ────────────
+// Allowlist EXPLÍCITA de campos del incidente para consumo externo. Excluye por
+// diseño: sender_phone y media_file_url. El contenido del reporte (raw_text,
+// transcribed_audio, declared_location) es público por decisión del proyecto.
+public record PublicIncidentDto(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("category")] string? Category,
+    [property: JsonPropertyName("severity")] string? Severity,
+    [property: JsonPropertyName("sector")] string? Sector,
+    [property: JsonPropertyName("city")] string? City,
+    [property: JsonPropertyName("latitude")] double? Latitude,
+    [property: JsonPropertyName("longitude")] double? Longitude,
+    [property: JsonPropertyName("is_hardware_gps")] bool IsHardwareGps,
+    [property: JsonPropertyName("status")] string? Status,
+    [property: JsonPropertyName("raw_text")] string? RawText,
+    [property: JsonPropertyName("transcribed_audio")] string? TranscribedAudio,
+    [property: JsonPropertyName("declared_location")] string? DeclaredLocation,
+    [property: JsonPropertyName("found_person_name")] string? FoundPersonName,
+    [property: JsonPropertyName("affected_person_name")] string? AffectedPersonName,
+    [property: JsonPropertyName("found_person_verified")] bool FoundPersonVerified,
+    [property: JsonPropertyName("source_channel")] string? SourceChannel,
+    [property: JsonPropertyName("triage_provider")] string? TriageProvider,
+    [property: JsonPropertyName("created_at")] DateTime CreatedAt,
+    [property: JsonPropertyName("updated_at")] DateTime UpdatedAt
+);
+
+// Metadatos de paginación por cursor opaco (base64url de created_at|id).
+public record PaginationInfo(
+    [property: JsonPropertyName("limit")] int Limit,
+    [property: JsonPropertyName("count")] int Count,
+    [property: JsonPropertyName("next_cursor")] string? NextCursor,
+    [property: JsonPropertyName("has_more")] bool HasMore
+);
+
+// Envoltura del export record-level (Accept: application/json).
+public record PublicIncidentsResponse(
+    [property: JsonPropertyName("data")] List<PublicIncidentDto> Data,
+    [property: JsonPropertyName("pagination")] PaginationInfo Pagination
+);
+
+// ── Variante GeoJSON (Accept: application/geo+json) — RFC 7946 ────────────────
+public record GeoJsonGeometry(
+    [property: JsonPropertyName("type")] string Type,
+    // RFC 7946: el orden es [longitude, latitude].
+    [property: JsonPropertyName("coordinates")] double[] Coordinates
+);
+
+public record GeoJsonFeature(
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("geometry")] GeoJsonGeometry Geometry,
+    [property: JsonPropertyName("properties")] PublicIncidentDto Properties
+);
+
+public record GeoJsonFeatureCollection(
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("features")] List<GeoJsonFeature> Features,
+    [property: JsonPropertyName("pagination")] PaginationInfo Pagination
+);
+
 

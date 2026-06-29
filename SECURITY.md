@@ -36,10 +36,22 @@ We credit researchers in our release notes unless they prefer to remain anonymou
 
 ---
 
+## Public-by-design data
+
+PULSO exposes an **[Open Data API](README.md#open-data-api)** (`/api/v1/public/*`). Report
+**content is public by design**: report text, voice-note transcriptions, declared locations,
+GPS coordinates, and the names of missing/found people are intentionally returned by this API
+so the information is not privatized. This is **not** a vulnerability.
+
+What is **never** exposed and *would* be a vulnerability:
+- The reporter's phone number column (`sender_phone`).
+- Media/storage URLs (`media_file_url`).
+- Any field outside the documented public allowlist.
+
 ## Scope — What we want to hear about
 
 - SQL injection or unsafe database queries
-- Exposure of PII (names, phone numbers, GPS coordinates)
+- **Unintentional** PII exposure: `sender_phone`, media URLs, or any field leaking outside the public allowlist
 - Authentication/authorization bypass on webhook endpoints
 - Rate-limit bypass enabling abuse of the reporting system
 - SSRF or data exfiltration via the geocoding layer

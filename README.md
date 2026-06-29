@@ -142,6 +142,40 @@ The project deploys automatically via GitHub Actions on push to `stage` (staging
 
 ---
 
+## Open Data API
+
+PULSO exposes a **public, open, read-only API** so anyone can extract the collected reports — no
+API key required. The goal is to keep the information open rather than privatized.
+
+| Resource | Description |
+|---|---|
+| `GET /api/v1/public/incidents` | Paginated record-level export (JSON, or GeoJSON via `Accept: application/geo+json`) |
+| `GET /api/v1/public/openapi.yaml` | Hand-written OpenAPI 3.1 specification (the contract) |
+| `GET /api/v1/public/docs` | Interactive API documentation |
+
+**Incremental sync** uses a stable opaque cursor over `(created_at, id)`:
+
+```bash
+# First page (oldest first)
+curl "https://pulsoaid.org/api/v1/public/incidents?limit=1000"
+
+# Follow pagination.next_cursor until has_more is false
+curl "https://pulsoaid.org/api/v1/public/incidents?since=<next_cursor>&limit=1000"
+
+# GeoJSON for QGIS / Leaflet / Mapbox
+curl -H "Accept: application/geo+json" "https://pulsoaid.org/api/v1/public/incidents"
+```
+
+> **Privacy:** report content (text, transcriptions, declared location, GPS, and the names of
+> missing/found people) is public **by design**. The reporter's phone number and media URLs are
+> never exposed. See [SECURITY.md](SECURITY.md).
+
+**Data license:** the report data served by this API is dedicated to the public domain under
+[CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) — use it freely, no attribution
+required. This is separate from the source code's Apache 2.0 license.
+
+---
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to submit issues, propose features, and open pull requests.

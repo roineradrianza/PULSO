@@ -1,0 +1,11 @@
+using Pulso.IngressApi.Models;
+
+namespace Pulso.IngressApi.Services;
+
+// Acceso de datos del Open Data API.
+public interface IPublicDataRepository
+{
+    // Paginación incremental por cursor compuesto (created_at, id) en orden ascendente.
+    // cursorTime/cursorId nulos => primera página (registros más antiguos primero).
+    Task<List<PublicIncidentDto>> GetPublicIncidentsAsync(DateTime? cursorTime, Guid? cursorId, int limit);
+}

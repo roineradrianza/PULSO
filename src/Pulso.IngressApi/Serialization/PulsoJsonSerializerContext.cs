@@ -22,6 +22,13 @@ namespace Pulso.IngressApi.Serialization;
 [JsonSerializable(typeof(CommentDto))]
 [JsonSerializable(typeof(List<CommentDto>))]
 [JsonSerializable(typeof(CreateCommentPayload))]
+[JsonSerializable(typeof(PublicIncidentDto))]
+[JsonSerializable(typeof(List<PublicIncidentDto>))]
+[JsonSerializable(typeof(PaginationInfo))]
+[JsonSerializable(typeof(PublicIncidentsResponse))]
+[JsonSerializable(typeof(GeoJsonGeometry))]
+[JsonSerializable(typeof(GeoJsonFeature))]
+[JsonSerializable(typeof(GeoJsonFeatureCollection))]
 internal partial class PulsoJsonSerializerContext : JsonSerializerContext
 {
 }

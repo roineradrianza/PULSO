@@ -1,0 +1,338 @@
+openapi: 3.1.0
+info:
+  title: PULSO Open Data API
+  version: "1.0.0"
+  summary: Open, read-only access to citizen emergency reports collected by PULSO.
+  description: |
+    Public, open data API for extracting emergency reports aggregated by PULSO during
+    crises in Venezuela. Read-only, no authentication required.
+
+    ## Intended use
+    Bulk extraction and incremental synchronization into third-party datasets,
+    dashboards, research, and humanitarian tooling.
+
+    ## Privacy notice
+    Report **content is public by design** (`raw_text`, `transcribed_audio`,
+    `declared_location`, and the names of missing/found people). Free-text fields may
+    contain phone numbers or addresses typed by reporters.
+    Consumers must not use this data to harass, profile, or harm reported individuals.
+
+    ## Incremental sync
+    Records are ordered ascending by a stable composite cursor `(created_at, id)`.
+    1. Call without `since` to get the oldest page.
+    2. Use `pagination.next_cursor` (or the `Link: rel="next"` header) as `since` for the next page.
+    3. Repeat until `has_more` is `false`.
+    4. To stay current, periodically re-request from your last cursor. Compare `updated_at`
+       to detect records that changed after you first stored them (e.g. a person marked safe).
+
+  license:
+    name: CC0 1.0
+    url: https://creativecommons.org/publicdomain/zero/1.0/
+  contact:
+    name: Roiner Adrianza
+    email: pulso@roineradrianza.com
+
+servers:
+  - url: https://pulsoaid.org
+    description: Production
+
+security: []
+
+tags:
+  - name: incidents
+    description: Emergency report records.
+
+paths:
+  /api/v1/public/incidents:
+    get:
+      tags: [incidents]
+      operationId: listPublicIncidents
+      summary: List emergency report records (paginated, incremental).
+      description: |
+        Returns a page of non-duplicate incident records in ascending `(created_at, id)`
+        order. Negotiate the response format with the `Accept` header:
+        `application/json` (default) or `application/geo+json` (RFC 7946 FeatureCollection;
+        records without coordinates are omitted from `features`).
+      parameters:
+        - name: since
+          in: query
+          required: false
+          description: Opaque cursor from a previous response's `next_cursor`. Omit for the first page.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Maximum records to return. Clamped to 1..5000.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
+            default: 1000
+      responses:
+        "200":
+          description: A page of records.
+          headers:
+            Link:
+              description: RFC 8288 link to the next page, when more records exist.
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+            Vary:
+              description: Always "Accept" — the response varies by negotiated media type.
+              schema:
+                type: string
+            Access-Control-Allow-Origin:
+              description: Always "*" — the API is open for cross-origin browser access.
+              schema:
+                type: string
+            Access-Control-Expose-Headers:
+              description: Always "Link" — lets cross-origin browser scripts read the pagination Link header.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicIncidentsResponse"
+              example:
+                data:
+                  - id: "9fa3c1e2-7b40-4d11-8c2a-1e5f6a8b9c0d"
+                    category: "structural_damage"
+                    severity: "CRITICAL"
+                    sector: "La Isabelica"
+                    city: "Valencia"
+                    latitude: 10.1620
+                    longitude: -68.0077
+                    is_hardware_gps: true
+                    status: "NEW"
+                    raw_text: "Se agrietó la pared del edificio, hay una señora atrapada. Soy María González."
+                    transcribed_audio: null
+                    declared_location: "Residencias El Sol, La Isabelica, Valencia"
+                    found_person_name: null
+                    affected_person_name: "María González"
+                    found_person_verified: false
+                    source_channel: "telegram"
+                    triage_provider: "gemini"
+                    created_at: "2026-06-29T14:12:03Z"
+                    updated_at: "2026-06-29T14:12:03Z"
+                  - id: "3c7d2b18-5a99-4e02-9f31-0b6c4d2e1a77"
+                    category: "person_found"
+                    severity: "LOW"
+                    sector: "Altamira"
+                    city: "Caracas"
+                    latitude: null
+                    longitude: null
+                    is_hardware_gps: false
+                    status: "RESOLVED"
+                    raw_text: "José Pérez ya apareció, está a salvo con su familia."
+                    transcribed_audio: null
+                    declared_location: "Plaza Altamira, Chacao"
+                    found_person_name: "José Pérez"
+                    affected_person_name: null
+                    found_person_verified: true
+                    source_channel: "whatsapp"
+                    triage_provider: "fallback"
+                    created_at: "2026-06-29T13:58:41Z"
+                    updated_at: "2026-06-29T14:05:10Z"
+                pagination:
+                  limit: 1000
+                  count: 2
+                  next_cursor: "MjAyNi0wNi0yOVQxNDoxMjowM1p8OWZhM2MxZTI"
+                  has_more: false
+            application/geo+json:
+              schema:
+                $ref: "#/components/schemas/GeoJsonFeatureCollection"
+              example:
+                type: "FeatureCollection"
+                features:
+                  - type: "Feature"
+                    geometry:
+                      type: "Point"
+                      coordinates: [-68.0077, 10.1620]
+                    properties:
+                      id: "9fa3c1e2-7b40-4d11-8c2a-1e5f6a8b9c0d"
+                      category: "structural_damage"
+                      severity: "CRITICAL"
+                      sector: "La Isabelica"
+                      city: "Valencia"
+                      latitude: 10.1620
+                      longitude: -68.0077
+                      is_hardware_gps: true
+                      status: "NEW"
+                      raw_text: "Se agrietó la pared del edificio, hay una señora atrapada. Soy María González."
+                      transcribed_audio: null
+                      declared_location: "Residencias El Sol, La Isabelica, Valencia"
+                      found_person_name: null
+                      affected_person_name: "María González"
+                      found_person_verified: false
+                      source_channel: "telegram"
+                      triage_provider: "gemini"
+                      created_at: "2026-06-29T14:12:03Z"
+                      updated_at: "2026-06-29T14:12:03Z"
+                pagination:
+                  limit: 1000
+                  count: 2
+                  next_cursor: "MjAyNi0wNi0yOVQxNDoxMjowM1p8OWZhM2MxZTI"
+                  has_more: false
+        "400":
+          description: Invalid cursor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "El parámetro 'since' no es un cursor válido."
+        "429":
+          description: Rate limit exceeded.
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying.
+              schema:
+                type: integer
+
+components:
+  schemas:
+    PublicIncident:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        category:
+          type: [string, "null"]
+          description: AI-assigned category (e.g. structural_damage, person_found, medical).
+        severity:
+          type: [string, "null"]
+          enum: [LOW, MEDIUM, HIGH, CRITICAL, null]
+        sector:
+          type: [string, "null"]
+          description: Neighborhood / sector name.
+        city:
+          type: [string, "null"]
+        latitude:
+          type: [number, "null"]
+        longitude:
+          type: [number, "null"]
+        is_hardware_gps:
+          type: boolean
+          description: true if coordinates come from a device GPS fix; false if approximate.
+        status:
+          type: [string, "null"]
+          enum: [NEW, PROCESSING, ASSIGNED, RESOLVED, PENDING_LOCATION, null]
+          description: >-
+            Lifecycle status. DUPLICATE records are never returned. PENDING_LOCATION
+            records have no coordinates yet (awaiting a location follow-up), so their
+            latitude/longitude are null.
+        raw_text:
+          type: [string, "null"]
+          description: Original report text. May contain personal data typed by the reporter.
+        transcribed_audio:
+          type: [string, "null"]
+          description: Transcription of a voice note, when present.
+        declared_location:
+          type: [string, "null"]
+          description: Free-text location as written by the reporter.
+        found_person_name:
+          type: [string, "null"]
+          description: Name of a person reported as found/safe.
+        affected_person_name:
+          type: [string, "null"]
+          description: Name of a person in distress (missing/trapped/injured).
+        found_person_verified:
+          type: boolean
+        source_channel:
+          type: string
+          enum: [telegram, whatsapp, pwa]
+          description: Channel the report arrived through. Always present.
+        triage_provider:
+          type: [string, "null"]
+          description: Engine that classified the report (e.g. gemini, fallback).
+        created_at:
+          type: string
+          format: date-time
+          description: UTC, ISO 8601.
+        updated_at:
+          type: string
+          format: date-time
+          description: UTC, ISO 8601. Differs from created_at when the record changed.
+      required: [id, is_hardware_gps, found_person_verified, created_at, updated_at]
+
+    Pagination:
+      type: object
+      properties:
+        limit:
+          type: integer
+        count:
+          type: integer
+          description: >-
+            Number of records consumed from the cursor in this page; the cursor advances
+            over all of them. In a GeoJSON response, records without coordinates are
+            omitted from `features`, so `features` length may be less than `count` —
+            those records are NOT skipped by the sync, they are simply not mappable.
+        next_cursor:
+          type: [string, "null"]
+          description: Pass as `since` to fetch the next page. null when there are no more.
+        has_more:
+          type: boolean
+      required: [limit, count, has_more]
+
+    PublicIncidentsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicIncident"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+      required: [data, pagination]
+
+    GeoJsonGeometry:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [Point]
+        coordinates:
+          type: array
+          description: "[longitude, latitude] per RFC 7946."
+          items:
+            type: number
+          minItems: 2
+          maxItems: 2
+      required: [type, coordinates]
+
+    GeoJsonFeature:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [Feature]
+        geometry:
+          $ref: "#/components/schemas/GeoJsonGeometry"
+        properties:
+          $ref: "#/components/schemas/PublicIncident"
+      required: [type, geometry, properties]
+
+    GeoJsonFeatureCollection:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [FeatureCollection]
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeoJsonFeature"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+      required: [type, features, pagination]
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]

@@ -30,6 +30,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? throw new InvalidOperationException("Falta la variable de configuración DefaultConnection.");
 builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
 builder.Services.AddSingleton<ISituationRepository, SituationRepository>();
+builder.Services.AddSingleton<IPublicDataRepository, PublicDataRepository>();
 
 // IP real del cliente: la API corre detrás de Caddy en el MISMO host, así que sin
 // esto toda petición se vería como loopback y el rate limit por IP sería inútil.
@@ -79,6 +80,17 @@ builder.Services.AddRateLimiter(options =>
         RateLimitPartition.GetSlidingWindowLimiter(ClientIp(httpContext), _ => new SlidingWindowRateLimiterOptions
         {
             PermitLimit = 15,
+            Window = TimeSpan.FromMinutes(1),
+            SegmentsPerWindow = 6,
+            QueueLimit = 0
+        }));
+
+    // Open Data API: extracción masiva por terceros. Más holgado que 'reads' porque
+    // el patrón legítimo es paginar muchas páginas seguidas, pero con tope anti-abuso.
+    options.AddPolicy("public", httpContext =>
+        RateLimitPartition.GetSlidingWindowLimiter(ClientIp(httpContext), _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = 120,
             Window = TimeSpan.FromMinutes(1),
             SegmentsPerWindow = 6,
             QueueLimit = 0
@@ -137,6 +149,7 @@ static string ClientIp(HttpContext ctx) => ctx.Connection.RemoteIpAddress?.ToStr
 
 // Registro de endpoints por área.
 app.MapPulsoApiEndpoints();   // ingesta directa + consultas de situación
+app.MapPublicDataEndpoints(); // Open Data API (contrato público + OAS 3.1)
 app.MapTelegramWebhook();     // adaptador de Telegram
 app.MapWhatsAppWebhook();     // adaptador de WhatsApp
 app.MapStreamEndpoint();      // SSE en tiempo real (señal de incidentes nuevos)
