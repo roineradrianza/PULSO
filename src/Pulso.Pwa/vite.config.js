@@ -36,6 +36,10 @@ export default defineConfig({
         ]
       },
       workbox: {
+        // El SW NO debe servir el index.html (navigation fallback) para rutas de API:
+        // una navegación del navegador a /api/* (ej. /api/v1/public/docs u openapi.yaml)
+        // debe ir a la red (Caddy -> IngressApi), no al app shell cacheado.
+        navigateFallbackDenylist: [/^\/api\//],
         // Precachear el app shell (todo lo que sale del build)
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
         // Cachear los azulejos del mapa en tiempo de ejecución para resiliencia offline
