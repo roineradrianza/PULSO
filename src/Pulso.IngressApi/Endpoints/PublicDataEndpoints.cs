@@ -27,7 +27,10 @@ public static class PublicDataEndpoints
             if (!string.IsNullOrEmpty(sinceRaw))
             {
                 if (!TryDecodeCursor(sinceRaw, out cursorTime, out cursorId))
-                    return Results.BadRequest(new { error = "El parámetro 'since' no es un cursor válido." });
+                    return Results.Problem(
+                        detail: "El parámetro 'since' no es un cursor válido.",
+                        statusCode: StatusCodes.Status400BadRequest,
+                        title: "Invalid cursor");
             }
 
             var limit = int.TryParse(http.Request.Query["limit"].ToString(), out var l)
@@ -76,6 +79,36 @@ public static class PublicDataEndpoints
             catch (Exception ex)
             {
                 app.Logger.LogError(ex, "Error occurred while fetching public incidents.");
+                return Results.Problem("An error occurred while processing your request.");
+            }
+        }).RequireRateLimiting("public");
+
+        // Detalle de un incidente público por id.
+        app.MapGet("/api/v1/public/incidents/{id}", async (string id, HttpContext http, IPublicDataRepository repo) =>
+        {
+            AllowAnyOrigin(http);
+
+            if (!Guid.TryParse(id, out var guid))
+                return Results.Problem(
+                    detail: "El identificador no es un UUID válido.",
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "Invalid id");
+
+            try
+            {
+                var item = await repo.GetPublicIncidentByIdAsync(guid);
+                if (item is null)
+                    return Results.Problem(
+                        detail: "No existe un incidente público con ese identificador.",
+                        statusCode: StatusCodes.Status404NotFound,
+                        title: "Not found");
+
+                http.Response.Headers.CacheControl = "public, max-age=30";
+                return Results.Json(item, PulsoJsonSerializerContext.Default.PublicIncidentDto);
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogError(ex, "Error occurred while fetching public incident by id.");
                 return Results.Problem("An error occurred while processing your request.");
             }
         }).RequireRateLimiting("public");

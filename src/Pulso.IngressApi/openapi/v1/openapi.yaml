@@ -179,11 +179,73 @@ paths:
         "400":
           description: Invalid cursor.
           content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+              example:
+                type: "about:blank"
+                title: "Invalid cursor"
+                status: 400
+                detail: "El parámetro 'since' no es un cursor válido."
+        "429":
+          description: Rate limit exceeded.
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying.
+              schema:
+                type: integer
+
+  /api/v1/public/incidents/{id}:
+    get:
+      tags: [incidents]
+      operationId: getPublicIncident
+      summary: Get a single emergency report record by id.
+      description: Returns one non-duplicate incident by its UUID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Incident UUID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The incident record.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+            Access-Control-Allow-Origin:
+              description: Always "*" — the API is open for cross-origin browser access.
+              schema:
+                type: string
+          content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/PublicIncident"
+        "400":
+          description: Malformed id (not a UUID).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
               example:
-                error: "El parámetro 'since' no es un cursor válido."
+                type: "about:blank"
+                title: "Invalid id"
+                status: 400
+                detail: "El identificador no es un UUID válido."
+        "404":
+          description: No public incident with that id (or it is a duplicate).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+              example:
+                type: "about:blank"
+                title: "Not found"
+                status: 404
+                detail: "No existe un incidente público con ese identificador."
         "429":
           description: Rate limit exceeded.
           headers:
@@ -337,9 +399,23 @@ components:
           $ref: "#/components/schemas/Pagination"
       required: [type, features, pagination]
 
-    Error:
+    Problem:
       type: object
+      description: Error response in RFC 7807 (application/problem+json) format.
       properties:
-        error:
+        type:
           type: string
-      required: [error]
+          format: uri
+          description: URI reference identifying the problem type.
+        title:
+          type: string
+          description: Short, human-readable summary of the problem type.
+        status:
+          type: integer
+          description: HTTP status code for this occurrence.
+        detail:
+          type: string
+          description: Human-readable explanation specific to this occurrence.
+        instance:
+          type: string
+          description: URI reference identifying the specific occurrence.
