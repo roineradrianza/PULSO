@@ -4,7 +4,7 @@
   import 'leaflet/dist/leaflet.css';
   import 'leaflet.markercluster';
   import 'leaflet.markercluster/dist/MarkerCluster.css';
-  import { situations, mapFocus, showToast } from '../lib/stores.js';
+  import { situations, sectorStats, mapFocus, showToast } from '../lib/stores.js';
   import { fetchSituationDetail, fetchComments, sendComment } from '../lib/api.js';
 
   let mapEl;
@@ -12,6 +12,11 @@
   let clusterGroup;
   let unsubSituations;
   let unsubFocus;
+  let unsubSectors;
+  // El mapa se auto-centra UNA sola vez en el sector más crítico al cargar. Pasa a true
+  // tras ese primer enfoque, o si el usuario interactúa/clica un sector antes, para no
+  // arrancarle el mapa en los polls siguientes.
+  let autoFocused = false;
 
   // Estado de diff: id -> { marker, sig } para actualizar sin reconstruir todo.
   const markersById = new Map();
@@ -402,15 +407,36 @@
     });
     map.addLayer(clusterGroup);
 
+    // Cualquier gesto del usuario sobre el mapa cancela el auto-enfoque inicial.
+    // (mousedown/wheel/touchstart son gestos reales; no se disparan por setView programático.)
+    ['mousedown', 'wheel', 'touchstart'].forEach((ev) =>
+      mapEl.addEventListener(ev, () => { autoFocused = true; }, { once: true, passive: true })
+    );
+
     unsubSituations = situations.subscribe((list) => syncMarkers(list));
     unsubFocus = mapFocus.subscribe((f) => {
-      if (f && map) map.setView([f.lat, f.lng], f.zoom ?? 14);
+      if (f && map) {
+        autoFocused = true; // un enfoque manual (clic en un sector) cancela el auto-enfoque
+        map.setView([f.lat, f.lng], f.zoom ?? 14);
+      }
+    });
+
+    // Auto-enfoque: la primera vez que llegan sectores (vienen ordenados por criticidad
+    // desde el backend), centra el mapa en el primero que tenga coordenadas. Solo una vez.
+    unsubSectors = sectorStats.subscribe((list) => {
+      if (autoFocused || !map || !list || list.length === 0) return;
+      const top = list.find((s) => s.latitude != null && s.longitude != null);
+      if (top) {
+        autoFocused = true;
+        map.setView([top.latitude, top.longitude], 13);
+      }
     });
   });
 
   onDestroy(() => {
     if (unsubSituations) unsubSituations();
     if (unsubFocus) unsubFocus();
+    if (unsubSectors) unsubSectors();
     if (map) map.remove();
   });
 </script>

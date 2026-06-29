@@ -207,7 +207,15 @@ public sealed class SituationRepository : ISituationRepository
             WHERE status != 'DUPLICATE' AND sector IS NOT NULL AND sector != ''"
             + (hasDate ? " AND created_at >= @utcStart AND created_at <= @utcEnd" : "")
             + @"
-            GROUP BY sector_name, city_name";
+            GROUP BY sector_name, city_name
+            ORDER BY
+                CASE
+                    WHEN bool_or(severity = 'CRITICAL') THEN 0
+                    WHEN bool_or(severity = 'HIGH') THEN 1
+                    WHEN bool_or(severity = 'MEDIUM') THEN 2
+                    ELSE 3
+                END,
+                COUNT(*) DESC";
 
         object? parameters = null;
         if (hasDate)
