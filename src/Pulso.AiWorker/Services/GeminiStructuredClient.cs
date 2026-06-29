@@ -129,11 +129,11 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
             {
                 if (properties.TryGetPropertyValue("severity", out var severityNode) && severityNode is JsonObject severityObj)
                 {
-                    severityObj["enum"] = new JsonArray { "LOW", "MEDIUM", "HIGH", "CRITICAL" };
+                    severityObj["enum"] = new JsonArray(IncidentTaxonomy.Severities.Select(s => (JsonNode)s).ToArray());
                 }
                 if (properties.TryGetPropertyValue("category", out var categoryNode) && categoryNode is JsonObject categoryObj)
                 {
-                    categoryObj["enum"] = new JsonArray { "SEARCH_AND_RESCUE", "FIRE_HAZARD", "MEDICAL_EMERGENCY", "WATER_FOOD_SHORTAGE", "INFRASTRUCTURE_DAMAGE" };
+                    categoryObj["enum"] = new JsonArray(IncidentTaxonomy.Categories.Select(c => (JsonNode)c).ToArray());
                 }
             }
         }

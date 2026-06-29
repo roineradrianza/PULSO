@@ -69,6 +69,60 @@ paths:
             minimum: 1
             maximum: 5000
             default: 1000
+        - name: severity
+          in: query
+          required: false
+          description: Filter by severity. Comma-separated for multiple (OR within the filter).
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/Severity"
+          example: "HIGH,CRITICAL"
+        - name: category
+          in: query
+          required: false
+          description: Filter by category. Comma-separated for multiple (OR within the filter).
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/Category"
+          example: "MEDICAL_EMERGENCY"
+        - name: created_from
+          in: query
+          required: false
+          description: Only records with created_at >= this ISO 8601 instant (UTC assumed if no offset).
+          schema:
+            type: string
+            format: date-time
+          example: "2026-06-24T00:00:00Z"
+        - name: created_to
+          in: query
+          required: false
+          description: Only records with created_at <= this ISO 8601 instant (UTC assumed if no offset).
+          schema:
+            type: string
+            format: date-time
+          example: "2026-06-25T23:59:59Z"
+        - name: bbox
+          in: query
+          required: false
+          description: >-
+            Spatial bounding box as minLon,minLat,maxLon,maxLat (WGS84). Returns only
+            records whose coordinates fall inside the box; records without coordinates
+            are excluded.
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: number
+            minItems: 4
+            maxItems: 4
+          example: "-68.10,10.10,-68.00,10.20"
       responses:
         "200":
           description: A page of records.
@@ -263,15 +317,18 @@ components:
           type: string
           format: uuid
         category:
-          type: [string, "null"]
-          enum: [SEARCH_AND_RESCUE, FIRE_HAZARD, MEDICAL_EMERGENCY, WATER_FOOD_SHORTAGE, INFRASTRUCTURE_DAMAGE, null]
           description: >-
-            Emergency category. Constrained to this controlled vocabulary at
-            classification time (enforced by the AI response schema, not by the
-            database column).
+            Emergency category. Constrained to a controlled vocabulary at classification
+            time (enforced by the AI response schema, not by the database column).
+            null for unclassified records.
+          anyOf:
+            - $ref: "#/components/schemas/Category"
+            - type: "null"
         severity:
-          type: [string, "null"]
-          enum: [LOW, MEDIUM, HIGH, CRITICAL, null]
+          description: Severity level. null if unclassified.
+          anyOf:
+            - $ref: "#/components/schemas/Severity"
+            - type: "null"
         sector:
           type: [string, "null"]
           description: Neighborhood / sector name.
@@ -327,6 +384,16 @@ components:
           format: date-time
           description: UTC, ISO 8601. Differs from created_at when the record changed.
       required: [id, is_hardware_gps, found_person_verified, created_at, updated_at]
+
+    Category:
+      type: string
+      description: Emergency category (controlled vocabulary).
+      enum: [SEARCH_AND_RESCUE, FIRE_HAZARD, MEDICAL_EMERGENCY, WATER_FOOD_SHORTAGE, INFRASTRUCTURE_DAMAGE]
+
+    Severity:
+      type: string
+      description: Severity level.
+      enum: [LOW, MEDIUM, HIGH, CRITICAL]
 
     Pagination:
       type: object

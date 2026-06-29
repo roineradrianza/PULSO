@@ -58,27 +58,62 @@ public sealed class PublicDataRepository : IPublicDataRepository
         created_at,
         updated_at";
 
-    public async Task<List<PublicIncidentDto>> GetPublicIncidentsAsync(DateTime? cursorTime, Guid? cursorId, int limit)
+    public async Task<List<PublicIncidentDto>> GetPublicIncidentsAsync(DateTime? cursorTime, Guid? cursorId, int limit, PublicIncidentFilter filter)
     {
-        var hasCursor = cursorTime.HasValue && cursorId.HasValue;
         await using var conn = await _dataSource.OpenConnectionAsync();
 
-        // La comparación de tupla (created_at, id) > (@t, @id) garantiza que dos filas
-        // con el mismo timestamp no se salten ni dupliquen.
+        // WHERE dinámico: condiciones AND-combinables. La comparación de tupla
+        // (created_at, id) > (@t, @id) garantiza que dos filas con el mismo timestamp
+        // no se salten ni dupliquen al paginar.
+        var where = new List<string> { "status != 'DUPLICATE'" };
+        var p = new DynamicParameters();
+        p.Add("limit", limit);
+
+        if (cursorTime.HasValue && cursorId.HasValue)
+        {
+            where.Add("(created_at, id) > (@cursorTime, @cursorId)");
+            p.Add("cursorTime", cursorTime.Value);
+            p.Add("cursorId", cursorId.Value);
+        }
+        if (filter.Severities is { Length: > 0 })
+        {
+            where.Add("severity::text = ANY(@severities)");
+            p.Add("severities", filter.Severities);
+        }
+        if (filter.Categories is { Length: > 0 })
+        {
+            where.Add("ai_category::text = ANY(@categories)");
+            p.Add("categories", filter.Categories);
+        }
+        if (filter.CreatedFrom.HasValue)
+        {
+            where.Add("created_at >= @createdFrom");
+            p.Add("createdFrom", filter.CreatedFrom.Value);
+        }
+        if (filter.CreatedTo.HasValue)
+        {
+            where.Add("created_at <= @createdTo");
+            p.Add("createdTo", filter.CreatedTo.Value);
+        }
+        // Filtro espacial por bounding box (usa el índice GiST). Excluye implícitamente
+        // los registros sin coordenadas (coordinates && envelope es null para ellos).
+        if (filter.Bbox is { Length: 4 })
+        {
+            where.Add("coordinates && ST_MakeEnvelope(@minLon, @minLat, @maxLon, @maxLat, 4326)");
+            p.Add("minLon", filter.Bbox[0]);
+            p.Add("minLat", filter.Bbox[1]);
+            p.Add("maxLon", filter.Bbox[2]);
+            p.Add("maxLat", filter.Bbox[3]);
+        }
+
         var query = $@"
             SELECT {SelectColumns}
             FROM public.incidents
-            WHERE status != 'DUPLICATE'"
-            + (hasCursor ? " AND (created_at, id) > (@cursorTime, @cursorId)" : "")
-            + @"
+            WHERE {string.Join(" AND ", where)}
             ORDER BY created_at ASC, id ASC
             LIMIT @limit";
 
-        object parameters = hasCursor
-            ? new { cursorTime = cursorTime!.Value, cursorId = cursorId!.Value, limit }
-            : new { limit };
-
-        var rows = await conn.QueryAsync<DbPublicIncident>(query, parameters);
+        var rows = await conn.QueryAsync<DbPublicIncident>(query, p);
         return rows.Select(Map).ToList();
     }
 

@@ -14,6 +14,9 @@ public static class PublicDataEndpoints
     private const int MaxLimit = 5000;
     private const string GeoJsonMediaType = "application/geo+json";
 
+    private static IResult InvalidFilter(string detail) =>
+        Results.Problem(detail: detail, statusCode: StatusCodes.Status400BadRequest, title: "Filtro Inválido");
+
     public static void MapPublicDataEndpoints(this WebApplication app)
     {
         // Export record-level. Negocia JSON (default) o GeoJSON vía cabecera Accept.
@@ -37,9 +40,14 @@ public static class PublicDataEndpoints
                 ? Math.Clamp(l, 1, MaxLimit)
                 : DefaultLimit;
 
+            // Filtros opcionales (severity, category, created_from/to, bbox). El parseo
+            // y la validación viven en PublicIncidentFilter para que el endpoint sea delgado.
+            if (!PublicIncidentFilter.TryParse(http.Request.Query, out var filter, out var filterError))
+                return InvalidFilter(filterError!);
+
             try
             {
-                var items = await repo.GetPublicIncidentsAsync(cursorTime, cursorId, limit);
+                var items = await repo.GetPublicIncidentsAsync(cursorTime, cursorId, limit, filter);
 
                 // has_more: si llenamos el límite, asumimos que puede haber más páginas.
                 var hasMore = items.Count == limit;
@@ -53,7 +61,18 @@ public static class PublicDataEndpoints
                 http.Response.Headers.Vary = "Accept";
                 if (nextCursor != null)
                 {
-                    var nextUrl = $"{BaseUrl(http)}/api/v1/public/incidents?since={Uri.EscapeDataString(nextCursor)}&limit={limit}";
+                    // Preserva todos los query params actuales y solo 
+                    // reemplaza 'since', para que la página
+                    // siguiente mantenga el mismo conjunto de filtros.
+                    var qs = new List<string>();
+                    foreach (var kv in http.Request.Query)
+                    {
+                        if (string.Equals(kv.Key, "since", StringComparison.OrdinalIgnoreCase)) continue;
+                        foreach (var v in kv.Value)
+                            qs.Add($"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(v ?? string.Empty)}");
+                    }
+                    qs.Add($"since={Uri.EscapeDataString(nextCursor)}");
+                    var nextUrl = $"{BaseUrl(http)}/api/v1/public/incidents?{string.Join("&", qs)}";
                     http.Response.Headers.Link = $"<{nextUrl}>; rel=\"next\"";
                 }
 

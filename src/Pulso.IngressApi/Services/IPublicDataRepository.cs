@@ -7,7 +7,7 @@ public interface IPublicDataRepository
 {
     // Paginación incremental por cursor compuesto (created_at, id) en orden ascendente.
     // cursorTime/cursorId nulos => primera página (registros más antiguos primero).
-    Task<List<PublicIncidentDto>> GetPublicIncidentsAsync(DateTime? cursorTime, Guid? cursorId, int limit);
+    Task<List<PublicIncidentDto>> GetPublicIncidentsAsync(DateTime? cursorTime, Guid? cursorId, int limit, PublicIncidentFilter filter);
 
     // Detalle de un incidente público por id. null si no existe o es un DUPLICATE.
     Task<PublicIncidentDto?> GetPublicIncidentByIdAsync(Guid id);
