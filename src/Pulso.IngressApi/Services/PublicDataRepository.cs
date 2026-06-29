@@ -31,7 +31,7 @@ public sealed class PublicDataRepository : IPublicDataRepository
         string? affected_person_name,
         bool found_person_verified,
         string? source_channel,
-        string? triage_provider,
+        bool needs_review,
         DateTime created_at,
         DateTime updated_at);
 
@@ -58,7 +58,7 @@ public sealed class PublicDataRepository : IPublicDataRepository
                 affected_person_name,
                 COALESCE(found_person_verified, false) AS found_person_verified,
                 source_channel,
-                COALESCE(triage_provider, 'gemini') AS triage_provider,
+                (COALESCE(triage_provider, 'gemini') <> 'gemini') AS needs_review,
                 created_at,
                 updated_at
             FROM public.incidents
@@ -90,7 +90,7 @@ public sealed class PublicDataRepository : IPublicDataRepository
             r.affected_person_name,
             r.found_person_verified,
             r.source_channel,
-            r.triage_provider,
+            r.needs_review,
             r.created_at,
             r.updated_at)).ToList();
     }

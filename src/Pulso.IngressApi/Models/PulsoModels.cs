@@ -100,7 +100,9 @@ public record PublicIncidentDto(
     [property: JsonPropertyName("affected_person_name")] string? AffectedPersonName,
     [property: JsonPropertyName("found_person_verified")] bool FoundPersonVerified,
     [property: JsonPropertyName("source_channel")] string? SourceChannel,
-    [property: JsonPropertyName("triage_provider")] string? TriageProvider,
+    // true cuando el reporte se clasificó con el fallback local (sin LLM): la
+    // clasificación es menos confiable y conviene confirmarla.
+    [property: JsonPropertyName("needs_review")] bool NeedsReview,
     [property: JsonPropertyName("created_at")] DateTime CreatedAt,
     [property: JsonPropertyName("updated_at")] DateTime UpdatedAt
 );
