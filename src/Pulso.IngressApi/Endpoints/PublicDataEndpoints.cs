@@ -15,7 +15,7 @@ public static class PublicDataEndpoints
     private const string GeoJsonMediaType = "application/geo+json";
 
     private static IResult InvalidFilter(string detail) =>
-        Results.Problem(detail: detail, statusCode: StatusCodes.Status400BadRequest, title: "Filtro Inválido");
+        Results.Problem(detail: detail, statusCode: StatusCodes.Status400BadRequest, title: "Invalid filter");
 
     public static void MapPublicDataEndpoints(this WebApplication app)
     {
