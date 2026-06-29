@@ -63,7 +63,9 @@ paths:
         - name: limit
           in: query
           required: false
-          description: Maximum records to return. Clamped to 1..5000.
+          description: >-
+            Maximum number of records to return per page. Defaults to 1000; values below
+            1 or above 5000 are adjusted to stay within that range.
           schema:
             type: integer
             minimum: 1
