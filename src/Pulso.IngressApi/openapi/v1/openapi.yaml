@@ -34,7 +34,7 @@ info:
 
 servers:
   - url: https://pulsoaid.org
-    description: Production
+    description: Current environment
 
 security: []
 

@@ -84,8 +84,11 @@ public static class PublicDataEndpoints
         app.MapGet("/api/v1/public/openapi.yaml", (HttpContext http) =>
         {
             AllowAnyOrigin(http);
+            // Reescribe el server al host actual para que "Try it out" y los clientes
+            // generados apunten al entorno desde el que se cargó el spec,
             http.Response.Headers.CacheControl = "public, max-age=3600";
-            return Results.Text(OpenApiSpec.Value, "application/yaml");
+            var spec = OpenApiSpec.Value.Replace("https://pulsoaid.org", BaseUrl(http));
+            return Results.Text(spec, "application/yaml");
         }).RequireRateLimiting("public");
 
         // Documentación interactiva apuntando al YAML anterior.
