@@ -29,11 +29,11 @@ builder.Services.AddHttpClient("nominatim", client =>
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 
-// Cliente del LLM estructurado (Gemini): timeout acotado para no estancar el worker si tarda.
-builder.Services.AddHttpClient(nameof(GeminiStructuredClient), client =>
-{
-    client.Timeout = TimeSpan.FromSeconds(15);
-});
+// Cliente del LLM estructurado (Gemini): handler de resiliencia estándar (retry con
+// backoff exponencial + jitter sobre 5xx/408/429/timeouts, circuit breaker, timeout por
+// intento y total) en vez de un timeout plano sin reintentos.
+builder.Services.AddHttpClient(nameof(GeminiStructuredClient))
+    .AddStandardResilienceHandler();
 
 // ── Servicios de dominio ──────────────────────────────────────────────────────
 // Cliente LLM abstracto (hoy Gemini): lo consume el geocodificador por LLM, desacoplado
