@@ -4,7 +4,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
-using Pulso.AiWorker.Models;
 
 namespace Pulso.AiWorker.Services;
 
@@ -125,19 +124,19 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
 
         var responseSchema = options.GetJsonSchemaAsNode(typeof(T), exporterOptions);
 
-        // Inyectar restricciones de enumerados (enum) en tiempo de ejecución para TriageResult
-        if (typeof(T) == typeof(TriageResult))
+        // Inyectar enums dinámicos declarados por el propio tipo T
+        var enumOverrides = SchemaEnumRegistry.GetOverrides(typeof(T));
+        if (enumOverrides != null)
         {
             var properties = responseSchema?["properties"]?.AsObject();
             if (properties != null)
             {
-                if (properties.TryGetPropertyValue("severity", out var severityNode) && severityNode is JsonObject severityObj)
+                foreach (var (propertyName, allowedValues) in enumOverrides)
                 {
-                    severityObj["enum"] = new JsonArray(IncidentTaxonomy.Severities.Select(s => (JsonNode)s).ToArray());
-                }
-                if (properties.TryGetPropertyValue("category", out var categoryNode) && categoryNode is JsonObject categoryObj)
-                {
-                    categoryObj["enum"] = new JsonArray(IncidentTaxonomy.Categories.Select(c => (JsonNode)c).ToArray());
+                    if (properties.TryGetPropertyValue(propertyName, out var propNode) && propNode is JsonObject propObj)
+                    {
+                        propObj["enum"] = new JsonArray(allowedValues.Select(v => (JsonNode)v).ToArray());
+                    }
                 }
             }
         }
