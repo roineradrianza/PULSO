@@ -43,7 +43,7 @@ public sealed class GeminiTriageService : IGeminiTriageService
             return SimulateTriage(text);
         }
 
-        var modelName  = _configuration["GeminiModelName"] ?? "gemini-2.0-flash";
+        var modelName  = _configuration["GeminiModelName"] ?? GeminiStructuredClient.DefaultModelName;
         _logger.LogInformation("Using Gemini model: {model}", modelName);
 
         activity?.SetTag("pulso.triage.provider", "gemini");

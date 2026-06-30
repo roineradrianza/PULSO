@@ -16,6 +16,10 @@ namespace Pulso.AiWorker.Services;
 /// </summary>
 public sealed class GeminiStructuredClient : ILlmStructuredClient
 {
+    // Única fuente de verdad del modelo por defecto: evita que el literal se duplique
+    // (y diverja) entre este cliente y sus consumidores (p. ej. GeminiTriageService).
+    internal const string DefaultModelName = "gemini-3.1-flash-lite";
+
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly ILogger<GeminiStructuredClient> _logger;
@@ -43,7 +47,7 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
             return null;
         }
 
-        var model      = modelName ?? _configuration["GeminiModelName"] ?? "gemini-2.0-flash";
+        var model      = modelName ?? _configuration["GeminiModelName"] ?? DefaultModelName;
         var apiVersion = model.Contains("1.5") ? "v1" : "v1beta";
         var url        = $"https://generativelanguage.googleapis.com/{apiVersion}/models/{model}:generateContent";
 
