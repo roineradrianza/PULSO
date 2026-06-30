@@ -40,7 +40,7 @@ public sealed class GeminiTriageService : IGeminiTriageService
         {
             _logger.LogWarning("GeminiApiKey not configured. Using local triage simulator.");
             activity?.SetTag("pulso.triage.provider", "simulator");
-            return SimulateTriage(text);
+            return SanitizeTaxonomy(SimulateTriage(text));
         }
 
         var modelName  = _configuration["GeminiModelName"] ?? GeminiStructuredClient.DefaultModelName;
@@ -61,13 +61,36 @@ public sealed class GeminiTriageService : IGeminiTriageService
         if (triageResult == null)
         {
             _logger.LogWarning("Gemini API call returned empty or failed. Using local triage simulator as fallback.");
-            return SimulateTriage(text);
+            return SanitizeTaxonomy(SimulateTriage(text));
         }
 
-        return triageResult with { TriageProvider = "gemini" };
+        return SanitizeTaxonomy(triageResult with { TriageProvider = "gemini" });
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    // Defensa en profundidad: el responseSchema obliga a Gemini a usar el enum, pero no
+    // confiamos ciegamente en eso antes de persistir. severity es un enum nativo de
+    // Postgres (severity_level): un valor fuera del vocabulario haría fallar el INSERT
+    // completo y, como el mensaje ya salió de la cola sin reintento, el reporte se
+    // perdería. category no tiene esa restricción en la base de datos, así que un valor
+    // inválido simplemente ensuciaría la taxonomía pública sin que nadie lo note.
+    private TriageResult SanitizeTaxonomy(TriageResult result)
+    {
+        var severity = IncidentTaxonomy.Severities.Contains(result.Severity) ? result.Severity : "MEDIUM";
+        if (severity != result.Severity)
+            _logger.LogWarning("Triage devolvió una severidad fuera del vocabulario ('{severity}'); se usa MEDIUM.", result.Severity);
+
+        var category = string.IsNullOrEmpty(result.Category) || IncidentTaxonomy.Categories.Contains(result.Category)
+            ? result.Category
+            : "";
+        if (category != result.Category)
+            _logger.LogWarning("Triage devolvió una categoría fuera del vocabulario ('{category}'); se descarta.", result.Category);
+
+        return severity == result.Severity && category == result.Category
+            ? result
+            : result with { Severity = severity, Category = category };
+    }
 
     private async Task<string> LoadSystemPromptAsync(CancellationToken cancellationToken)
     {

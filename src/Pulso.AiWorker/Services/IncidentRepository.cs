@@ -45,7 +45,7 @@ public sealed class IncidentRepository : IIncidentRepository
         cmd.Parameters.AddWithValue("phone",               payload.Phone);
         cmd.Parameters.AddWithValue("channel",             payload.Channel);
         cmd.Parameters.AddWithValue("raw_text",            rawText);
-        cmd.Parameters.AddWithValue("category",            triage.Category);
+        cmd.Parameters.AddWithValue("category",            string.IsNullOrEmpty(triage.Category) ? DBNull.Value : triage.Category);
         cmd.Parameters.AddWithValue("severity",            triage.Severity);
         cmd.Parameters.AddWithValue("tags",                triage.Tags);
         cmd.Parameters.AddWithValue("latitude",            latitude.HasValue  ? (object)latitude.Value  : DBNull.Value);
