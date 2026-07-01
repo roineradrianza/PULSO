@@ -50,6 +50,8 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
         var apiVersion = model.Contains("1.5") ? "v1" : "v1beta";
         var url        = $"https://generativelanguage.googleapis.com/{apiVersion}/models/{model}:generateContent";
 
+        using var activity = GenAiTelemetry.StartCall("gemini", model);
+
         object parts;
         if (userPrompt is string textPrompt)
         {
@@ -163,21 +165,35 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
                 _logger.LogWarning(
                     "Cliente LLM (Gemini): respondió {status} con modelo '{model}' — {err}.",
                     response.StatusCode, model, err);
+                GenAiTelemetry.RecordError(activity, $"HTTP {(int)response.StatusCode}");
                 return null;
             }
 
             var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
             using var doc = JsonDocument.Parse(responseJson);
 
-            var candidateText = doc.RootElement
-                .GetProperty("candidates")[0]
+            int? inputTokens = null, outputTokens = null;
+            if (doc.RootElement.TryGetProperty("usageMetadata", out var usage))
+            {
+                if (usage.TryGetProperty("promptTokenCount", out var pt)) inputTokens = pt.GetInt32();
+                if (usage.TryGetProperty("candidatesTokenCount", out var ct)) outputTokens = ct.GetInt32();
+            }
+
+            var candidate = doc.RootElement.GetProperty("candidates")[0];
+            var finishReason = candidate.TryGetProperty("finishReason", out var fr) ? fr.GetString() : null;
+            GenAiTelemetry.RecordUsage(activity, inputTokens, outputTokens, finishReason);
+
+            var candidateText = candidate
                 .GetProperty("content")
                 .GetProperty("parts")[0]
                 .GetProperty("text")
                 .GetString();
 
             if (string.IsNullOrEmpty(candidateText))
+            {
+                GenAiTelemetry.RecordError(activity, "Empty candidate text");
                 return null;
+            }
 
             return JsonSerializer.Deserialize<T>(candidateText, options);
         }
@@ -188,6 +204,7 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Cliente LLM (Gemini): fallo en la generación estructurada.");
+            GenAiTelemetry.RecordError(activity, ex.Message);
             return null;
         }
     }
