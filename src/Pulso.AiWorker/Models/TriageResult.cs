@@ -9,7 +9,7 @@ public record TriageResult(
     string Severity,
 
     [property: JsonPropertyName("category")]
-    [property: Description("Categoría del reporte de emergencia (SEARCH_AND_RESCUE, FIRE_HAZARD, MEDICAL_EMERGENCY, WATER_FOOD_SHORTAGE, INFRASTRUCTURE_DAMAGE).")]
+    [property: Description("Categoría del reporte de emergencia (SEARCH_AND_RESCUE, FIRE_HAZARD, MEDICAL_EMERGENCY, WATER_FOOD_SHORTAGE, INFRASTRUCTURE_DAMAGE, LOST_FOUND_PET).")]
     string Category,
 
     [property: JsonPropertyName("tags")]
@@ -68,5 +68,13 @@ public record TriageResult(
 
     [property: JsonPropertyName("triage_provider")]
     [property: Description("El motor de triaje utilizado.")]
-    string TriageProvider = "gemini"
+    string TriageProvider = "gemini",
+
+    [property: JsonPropertyName("pet_report_type")]
+    [property: Description("LOST si el ciudadano perdió su propia mascota, FOUND si encontró/vio una mascota que no es suya y busca a su dueño. Cadena vacía si el reporte no es sobre una mascota.")]
+    string? PetReportType = null,
+
+    [property: JsonPropertyName("is_inappropriate_content")]
+    [property: Description("true si la imagen adjunta contiene contenido explícito, sexual, spam o de abuso, ajeno al propósito de la plataforma (reportar emergencias o mascotas). Una imagen de una mascota, daño estructural, incendio, inundación o persona en una emergencia real NO es inapropiada aunque sea gráfica. false si no aplica o no hay imagen.")]
+    bool? IsInappropriateContent = null
 );

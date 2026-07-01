@@ -13,7 +13,8 @@ public static class IncidentTaxonomy
         "FIRE_HAZARD",
         "MEDICAL_EMERGENCY",
         "WATER_FOOD_SHORTAGE",
-        "INFRASTRUCTURE_DAMAGE"
+        "INFRASTRUCTURE_DAMAGE",
+        "LOST_FOUND_PET"
     };
 
     /// <summary>Niveles de severidad (orden ascendente de gravedad).</summary>

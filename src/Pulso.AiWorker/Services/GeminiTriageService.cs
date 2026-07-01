@@ -87,9 +87,20 @@ public sealed class GeminiTriageService : IGeminiTriageService
         if (category != result.Category)
             _logger.LogWarning("Triage devolvió una categoría fuera del vocabulario ('{category}'); se descarta.", result.Category);
 
-        return severity == result.Severity && category == result.Category
+        // Un reporte de mascota nunca es una emergencia real: se fuerza LOW sin importar
+        // lo que haya devuelto el modelo (evita que texto emotivo dispare HIGH/CRITICAL).
+        if (category == "LOST_FOUND_PET")
+            severity = "LOW";
+
+        var petReportType = string.IsNullOrEmpty(result.PetReportType) || TriageResultSchemaRegistration.PetReportTypes.Contains(result.PetReportType)
+            ? result.PetReportType
+            : "";
+        if (petReportType != result.PetReportType)
+            _logger.LogWarning("Triage devolvió un pet_report_type fuera del vocabulario ('{petReportType}'); se descarta.", result.PetReportType);
+
+        return severity == result.Severity && category == result.Category && petReportType == result.PetReportType
             ? result
-            : result with { Severity = severity, Category = category };
+            : result with { Severity = severity, Category = category, PetReportType = petReportType };
     }
 
     private async Task<string> LoadSystemPromptAsync(CancellationToken cancellationToken)
