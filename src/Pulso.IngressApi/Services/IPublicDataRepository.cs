@@ -11,4 +11,8 @@ public interface IPublicDataRepository
 
     // Detalle de un incidente público por id. null si no existe o es un DUPLICATE.
     Task<PublicIncidentDto?> GetPublicIncidentByIdAsync(Guid id);
+
+    // Comentarios de un incidente público, en orden cronológico. null si el incidente
+    // no existe o es un DUPLICATE (mismo criterio de visibilidad que el detalle).
+    Task<List<CommentDto>?> GetPublicIncidentCommentsAsync(Guid incidentId);
 }

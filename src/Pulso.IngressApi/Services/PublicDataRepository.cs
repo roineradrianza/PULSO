@@ -130,6 +130,31 @@ public sealed class PublicDataRepository : IPublicDataRepository
         return row is null ? null : Map(row);
     }
 
+    private record DbComment(Guid id, Guid incident_id, string raw_text, DateTime created_at);
+
+    public async Task<List<CommentDto>?> GetPublicIncidentCommentsAsync(Guid incidentId)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync();
+
+        var exists = await conn.QueryFirstOrDefaultAsync<int?>(
+            "SELECT 1 FROM public.incidents WHERE id = @id AND status != 'DUPLICATE'", new { id = incidentId });
+        if (exists == null)
+            return null;
+
+        var comments = await conn.QueryAsync<DbComment>(
+            @"SELECT id, incident_id, raw_text, created_at
+              FROM public.comments
+              WHERE incident_id = @id
+              ORDER BY created_at ASC",
+            new { id = incidentId });
+
+        return comments.Select(c => new CommentDto(
+            c.id.ToString(),
+            c.incident_id.ToString(),
+            c.raw_text,
+            c.created_at)).ToList();
+    }
+
     private static PublicIncidentDto Map(DbPublicIncident r) => new(
         r.id.ToString(),
         r.ai_category,

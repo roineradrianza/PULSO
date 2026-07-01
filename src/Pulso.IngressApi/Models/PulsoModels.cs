@@ -121,6 +121,11 @@ public record PublicIncidentsResponse(
     [property: JsonPropertyName("pagination")] PaginationInfo Pagination
 );
 
+// Comentarios de un incidente público.
+public record PublicCommentsResponse(
+    [property: JsonPropertyName("data")] List<CommentDto> Data
+);
+
 // ── Variante GeoJSON (Accept: application/geo+json) — RFC 7946 ────────────────
 public record GeoJsonGeometry(
     [property: JsonPropertyName("type")] string Type,

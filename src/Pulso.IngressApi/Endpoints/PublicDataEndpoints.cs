@@ -132,6 +132,36 @@ public static class PublicDataEndpoints
             }
         }).RequireRateLimiting("public");
 
+        // Comentarios/actualizaciones de un incidente público (anónimos por diseño).
+        app.MapGet("/api/v1/public/incidents/{id}/comments", async (string id, HttpContext http, IPublicDataRepository repo) =>
+        {
+            AllowAnyOrigin(http);
+
+            if (!Guid.TryParse(id, out var guid))
+                return Results.Problem(
+                    detail: "El identificador no es un UUID válido.",
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "Invalid id");
+
+            try
+            {
+                var comments = await repo.GetPublicIncidentCommentsAsync(guid);
+                if (comments is null)
+                    return Results.Problem(
+                        detail: "No existe un incidente público con ese identificador.",
+                        statusCode: StatusCodes.Status404NotFound,
+                        title: "Not found");
+
+                http.Response.Headers.CacheControl = "public, max-age=30";
+                return Results.Json(new PublicCommentsResponse(comments), PulsoJsonSerializerContext.Default.PublicCommentsResponse);
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogError(ex, "Error occurred while fetching public incident comments.");
+                return Results.Problem("An error occurred while processing your request.");
+            }
+        }).RequireRateLimiting("public");
+
         // Especificación OpenAPI 3.1
         app.MapGet("/api/v1/public/openapi.yaml", (HttpContext http) =>
         {

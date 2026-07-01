@@ -26,6 +26,7 @@ namespace Pulso.IngressApi.Serialization;
 [JsonSerializable(typeof(List<PublicIncidentDto>))]
 [JsonSerializable(typeof(PaginationInfo))]
 [JsonSerializable(typeof(PublicIncidentsResponse))]
+[JsonSerializable(typeof(PublicCommentsResponse))]
 [JsonSerializable(typeof(GeoJsonGeometry))]
 [JsonSerializable(typeof(GeoJsonFeature))]
 [JsonSerializable(typeof(GeoJsonFeatureCollection))]

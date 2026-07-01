@@ -150,6 +150,8 @@ API key required. The goal is to keep the information open rather than privatize
 | Resource | Description |
 |---|---|
 | `GET /api/v1/public/incidents` | Paginated record-level export (JSON, or GeoJSON via `Accept: application/geo+json`) |
+| `GET /api/v1/public/incidents/{id}` | A single incident record by id |
+| `GET /api/v1/public/incidents/{id}/comments` | Comments/updates posted on an incident |
 | `GET /api/v1/public/openapi.yaml` | Hand-written OpenAPI 3.1 specification (the contract) |
 | `GET /api/v1/public/docs` | Interactive API documentation |
 
