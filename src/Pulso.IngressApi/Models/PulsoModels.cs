@@ -56,8 +56,11 @@ public record LocationStat(
     // Nombres de personas en peligro (buscadas/atrapadas) reportadas en el sector.
     [property: JsonPropertyName("people_searched")] List<string> PeopleSearched,
     // Mascotas encontradas (alguien las tiene/vio) vs. perdidas (el dueño las busca) en el sector.
+    // Las listas traen solo mascotas CON nombre (para los badges); el conteo total del
+    // sector va aparte porque muchos reportes de mascota llegan sin nombre.
     [property: JsonPropertyName("pets_found")] List<string> PetsFound,
     [property: JsonPropertyName("pets_lost")] List<string> PetsLost,
+    [property: JsonPropertyName("pets_count")] int PetsCount,
     // Centroide aproximado del sector para centrar el mapa sin depender de la lista de incidentes.
     [property: JsonPropertyName("latitude")] double? Latitude,
     [property: JsonPropertyName("longitude")] double? Longitude

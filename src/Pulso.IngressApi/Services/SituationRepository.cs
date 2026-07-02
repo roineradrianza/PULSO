@@ -44,6 +44,7 @@ public sealed class SituationRepository : ISituationRepository
         string? searched_names,
         string? pets_found_names,
         string? pets_lost_names,
+        long pets_count,
         double latitude,
         double longitude);
 
@@ -211,8 +212,9 @@ public sealed class SituationRepository : ISituationRepository
                 END as sector_status,
                 string_agg(found_person_name, ',') filter (where found_person_name is not null) as people_names,
                 string_agg(affected_person_name, ',') filter (where affected_person_name is not null) as searched_names,
-                string_agg(pet_name, ',') filter (where pet_name is not null and pet_report_type = 'FOUND') as pets_found_names,
-                string_agg(pet_name, ',') filter (where pet_name is not null and pet_report_type = 'LOST') as pets_lost_names,
+                string_agg(pet_name, ',') filter (where pet_name is not null and pet_name <> '' and ai_category = 'LOST_FOUND_PET' and pet_report_type = 'FOUND') as pets_found_names,
+                string_agg(pet_name, ',') filter (where pet_name is not null and pet_name <> '' and ai_category = 'LOST_FOUND_PET' and pet_report_type = 'LOST') as pets_lost_names,
+                COUNT(*) filter (where ai_category = 'LOST_FOUND_PET') as pets_count,
                 AVG(ST_Y(coordinates::geometry)) as latitude,
                 AVG(ST_X(coordinates::geometry)) as longitude
             FROM public.incidents
@@ -256,7 +258,7 @@ public sealed class SituationRepository : ISituationRepository
                 : row.pets_lost_names.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
 
             var city = string.IsNullOrEmpty(row.city_name) ? null : row.city_name;
-            return new LocationStat(row.sector_name, city, row.sector_status, (int)row.incident_count, peopleList, searchedList, petsFoundList, petsLostList, row.latitude, row.longitude);
+            return new LocationStat(row.sector_name, city, row.sector_status, (int)row.incident_count, peopleList, searchedList, petsFoundList, petsLostList, (int)row.pets_count, row.latitude, row.longitude);
         }).ToList();
     }
 
