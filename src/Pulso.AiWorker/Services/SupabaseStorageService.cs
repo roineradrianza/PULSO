@@ -42,6 +42,7 @@ public sealed class SupabaseStorageService : IMediaStorageService
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, uploadUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", serviceRoleKey);
+            request.Headers.Add("apikey", serviceRoleKey);
             // Reintentos sobrescriben limpio en vez de fallar por conflicto de llave.
             request.Headers.Add("x-upsert", "true");
 

@@ -52,6 +52,7 @@ public class SupabaseStorageServiceTests
             handler.LastRequest.RequestUri!.ToString());
         Assert.Equal("Bearer", handler.LastRequest.Headers.Authorization?.Scheme);
         Assert.Equal("test-service-role-key", handler.LastRequest.Headers.Authorization?.Parameter);
+        Assert.Equal("test-service-role-key", handler.LastRequest.Headers.GetValues("apikey").Single());
         Assert.Equal("true", handler.LastRequest.Headers.GetValues("x-upsert").Single());
         Assert.Equal("image/jpeg", handler.LastRequest.Content?.Headers.ContentType?.MediaType);
     }
