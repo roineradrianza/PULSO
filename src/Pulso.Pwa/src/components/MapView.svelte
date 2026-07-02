@@ -4,15 +4,19 @@
   import 'leaflet/dist/leaflet.css';
   import 'leaflet.markercluster';
   import 'leaflet.markercluster/dist/MarkerCluster.css';
-  import { situations, sectorStats, mapFocus, showToast } from '../lib/stores.js';
+  import { situations, sectorStats, mapFocus, isMobile, showToast } from '../lib/stores.js';
   import { fetchSituationDetail, fetchComments, sendComment } from '../lib/api.js';
+  import BottomSheet from './BottomSheet.svelte';
 
   let mapEl;
   let map;
   let clusterGroup;
+  let sheet;
+  let mobile = false;
   let unsubSituations;
   let unsubFocus;
   let unsubSectors;
+  let unsubMobile;
   // El mapa se auto-centra UNA sola vez en el sector más crítico al cargar. Pasa a true
   // tras ese primer enfoque, o si el usuario interactúa/clica un sector antes, para no
   // arrancarle el mapa en los polls siguientes.
@@ -375,10 +379,22 @@
     return wrap;
   }
 
+  // En móvil el detalle se abre en el bottom sheet (más espacio para foto/
+  // comentarios); en desktop sigue siendo el popup chico de Leaflet. Ambos
+  // reutilizan el mismo buildPopup(sit), solo cambia dónde se monta el nodo.
+  function bindMarkerInteraction(marker, sit) {
+    marker.unbindPopup();
+    marker.off('click');
+    if (mobile) {
+      marker.on('click', () => sheet.open(buildPopup(sit)));
+    } else {
+      marker.bindPopup(() => buildPopup(sit), { minWidth: 260, maxWidth: 320, maxHeight: 260 });
+    }
+  }
+
   function makeMarker(sit) {
     const marker = L.marker([sit.latitude, sit.longitude], { icon: buildIcon(sit) });
-    // bindPopup con función => contenido (y descarga lazy) solo al abrir.
-    marker.bindPopup(() => buildPopup(sit), { minWidth: 260, maxWidth: 320, maxHeight: 260 });
+    bindMarkerInteraction(marker, sit);
     // Severidad accesible para colorear el cluster.
     marker.pulsoSeverity = sit.severity;
     return marker;
@@ -406,7 +422,7 @@
         existing.marker.setLatLng([sit.latitude, sit.longitude]);
         existing.marker.setIcon(buildIcon(sit));
         existing.marker.pulsoSeverity = sit.severity;
-        existing.marker.bindPopup(() => buildPopup(sit), { minWidth: 260, maxWidth: 320, maxHeight: 260 });
+        bindMarkerInteraction(existing.marker, sit);
         existing.sig = sig;
         detailCache.delete(sit.id);
       }
@@ -463,6 +479,7 @@
       mapEl.addEventListener(ev, () => { autoFocused = true; }, { once: true, passive: true })
     );
 
+    unsubMobile = isMobile.subscribe((v) => { mobile = v; });
     unsubSituations = situations.subscribe((list) => syncMarkers(list));
     unsubFocus = mapFocus.subscribe((f) => {
       if (f && map) {
@@ -487,6 +504,7 @@
     if (unsubSituations) unsubSituations();
     if (unsubFocus) unsubFocus();
     if (unsubSectors) unsubSectors();
+    if (unsubMobile) unsubMobile();
     if (map) map.remove();
   });
 </script>
@@ -505,6 +523,8 @@
     <div bind:this={mapEl} id="map"></div>
   </div>
 </div>
+
+<BottomSheet bind:this={sheet} />
 
 <style>
   .map-info-panel {
@@ -542,23 +562,23 @@
     transform: scale(1.1);
     transition: transform 0.15s ease-out;
   }
-  :global(.leaflet-popup-content) {
+  :global(.leaflet-popup-content, .sheet-content) {
     overflow-y: auto !important;
     padding-right: 6px !important;
     box-sizing: border-box;
   }
-  :global(.leaflet-popup-content::-webkit-scrollbar) {
+  :global(.leaflet-popup-content::-webkit-scrollbar, .sheet-content::-webkit-scrollbar) {
     width: 4px;
   }
-  :global(.leaflet-popup-content::-webkit-scrollbar-track) {
+  :global(.leaflet-popup-content::-webkit-scrollbar-track, .sheet-content::-webkit-scrollbar-track) {
     background: rgba(255, 255, 255, 0.02);
     border-radius: 4px;
   }
-  :global(.leaflet-popup-content::-webkit-scrollbar-thumb) {
+  :global(.leaflet-popup-content::-webkit-scrollbar-thumb, .sheet-content::-webkit-scrollbar-thumb) {
     background: rgba(255, 255, 255, 0.15);
     border-radius: 4px;
   }
-  :global(.leaflet-popup-content::-webkit-scrollbar-thumb:hover) {
+  :global(.leaflet-popup-content::-webkit-scrollbar-thumb:hover, .sheet-content::-webkit-scrollbar-thumb:hover) {
     background: rgba(255, 255, 255, 0.3);
   }
   :global(.photo-skeleton) {

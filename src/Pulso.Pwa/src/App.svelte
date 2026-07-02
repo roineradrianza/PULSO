@@ -9,7 +9,7 @@
   import SectorsList from './components/SectorsList.svelte';
   import ReportForm from './components/ReportForm.svelte';
   import Toast from './components/Toast.svelte';
-  import { online, pendingCount, showToast, selectedDate } from './lib/stores.js';
+  import { online, isMobile, pendingCount, showToast, selectedDate } from './lib/stores.js';
   import { loadInitial, loadDelta, loadFromCache } from './lib/data.js';
   import { startRealtime, stopRealtime } from './lib/realtime.js';
   import { countQueued } from './lib/db.js';
@@ -55,6 +55,9 @@
     showToast('Sin conexión celular. Operando en modo offline.', true);
   }
 
+  const mobileQuery = typeof window !== 'undefined' ? window.matchMedia('(max-width: 850px)') : null;
+  const handleMobileChange = (e) => isMobile.set(e.matches);
+
   // Polling de respaldo (por si el SSE está bloqueado por la red).
   async function pollDelta() {
     if (!navigator.onLine) return;
@@ -69,6 +72,7 @@
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('hashchange', updateViewFromHash);
+    mobileQuery?.addEventListener('change', handleMobileChange);
 
     updateViewFromHash();
     refreshPending();
@@ -90,6 +94,7 @@
     window.removeEventListener('online', handleOnline);
     window.removeEventListener('offline', handleOffline);
     window.removeEventListener('hashchange', updateViewFromHash);
+    mobileQuery?.removeEventListener('change', handleMobileChange);
   });
 </script>
 

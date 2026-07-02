@@ -4,6 +4,8 @@ import { writable } from 'svelte/store';
 // Estado de conexión de red.
 export const online = writable(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
+export const isMobile = writable(typeof window !== 'undefined' && window.matchMedia('(max-width: 850px)').matches);
+
 // Calcular la fecha de hoy en America/Caracas para la inicialización
 function getTodayInVet() {
   const d = new Date();
