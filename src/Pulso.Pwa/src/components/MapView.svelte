@@ -4,11 +4,12 @@
   import 'leaflet/dist/leaflet.css';
   import 'leaflet.markercluster';
   import 'leaflet.markercluster/dist/MarkerCluster.css';
-  import { situations, sectorStats, mapFocus, isMobile, showToast } from '../lib/stores.js';
+  import { situations, sectorStats, mapFocus, isMobile, showToast, reportFilter } from '../lib/stores.js';
   import { fetchSituationDetail, fetchComments, sendComment } from '../lib/api.js';
   import BottomSheet from './BottomSheet.svelte';
 
   let mapEl;
+  let cardEl;
   let map;
   let clusterGroup;
   let sheet;
@@ -17,6 +18,11 @@
   let unsubFocus;
   let unsubSectors;
   let unsubMobile;
+  let unsubFilter;
+  // Último snapshot de situaciones: permite re-proyectar los pines al cambiar
+  // el filtro sin esperar una nueva emisión del store.
+  let lastList = [];
+  let filterMode = 'all';
   // El mapa se auto-centra UNA sola vez en el sector más crítico al cargar. Pasa a true
   // tras ese primer enfoque, o si el usuario interactúa/clica un sector antes, para no
   // arrancarle el mapa en los polls siguientes.
@@ -29,10 +35,17 @@
 
   const SEVERITY_RANK = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
   const RANK_COLOR = ['var(--info-blue)', 'var(--warning-amber)', 'var(--accent-orange)', 'var(--danger-red)'];
-  const PET_COLOR = '#c9975a';
+  const PET_COLOR = 'var(--pet-gold)';
 
   function isPetReport(sit) {
     return sit.category === 'LOST_FOUND_PET';
+  }
+
+  // Visibilidad de un reporte según el filtro global por tipo.
+  function matchesFilter(sit) {
+    if (filterMode === 'pets') return isPetReport(sit);
+    if (filterMode === 'incidents') return !isPetReport(sit);
+    return true;
   }
 
   function severityColor(sit) {
@@ -438,8 +451,9 @@
   function makeMarker(sit) {
     const marker = L.marker([sit.latitude, sit.longitude], { icon: buildIcon(sit) });
     bindMarkerInteraction(marker, sit);
-    // Severidad accesible para colorear el cluster.
+    // Severidad y tipo accesibles para colorear el cluster.
     marker.pulsoSeverity = sit.severity;
+    marker.pulsoIsPet = isPetReport(sit);
     return marker;
   }
 
@@ -450,7 +464,7 @@
     const seen = new Set();
     const toAdd = [];
 
-    for (const sit of list) {
+    for (const sit of list.filter(matchesFilter)) {
       if (!sit.latitude || !sit.longitude) continue;
       seen.add(sit.id);
       const sig = signature(sit);
@@ -465,6 +479,7 @@
         existing.marker.setLatLng([sit.latitude, sit.longitude]);
         existing.marker.setIcon(buildIcon(sit));
         existing.marker.pulsoSeverity = sit.severity;
+        existing.marker.pulsoIsPet = isPetReport(sit);
         bindMarkerInteraction(existing.marker, sit);
         existing.sig = sig;
         detailCache.delete(sit.id);
@@ -484,14 +499,35 @@
     if (toAdd.length) clusterGroup.addLayers(toAdd);
   }
 
+  // Encuadra el mapa al conjunto de reportes visibles con el filtro activo,
+  // en vez de centrarlo en uno solo (elegir "el primero" sería arbitrario).
+  // En móvil además trae el mapa a la vista, que puede estar fuera de pantalla.
+  function fitToFiltered() {
+    const pts = lastList
+      .filter((s) => s.latitude && s.longitude && matchesFilter(s))
+      .map((s) => [s.latitude, s.longitude]);
+    if (pts.length === 0) return;
+    autoFocused = true; // el usuario pidió este encuadre: cancela el auto-enfoque inicial
+    map.flyToBounds(L.latLngBounds(pts).pad(0.2), { maxZoom: 15 });
+    if (mobile && cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   // Ícono del cluster: color = severidad más alta que contiene + conteo.
+  // Si el cluster solo agrupa mascotas hereda su dorado, para que el color
+  // de severidad no sugiera una emergencia humana donde no la hay.
   function clusterIcon(cluster) {
-    let rank = 0;
-    for (const m of cluster.getAllChildMarkers()) {
-      const r = SEVERITY_RANK[m.pulsoSeverity] ?? 0;
-      if (r > rank) rank = r;
+    const children = cluster.getAllChildMarkers();
+    let color;
+    if (children.every((m) => m.pulsoIsPet)) {
+      color = PET_COLOR;
+    } else {
+      let rank = 0;
+      for (const m of children) {
+        const r = SEVERITY_RANK[m.pulsoSeverity] ?? 0;
+        if (r > rank) rank = r;
+      }
+      color = RANK_COLOR[rank];
     }
-    const color = RANK_COLOR[rank];
     const count = cluster.getChildCount();
     return L.divIcon({
       html: `<div style="background-color: ${color}; color: #fff; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: 2px solid #ffffff; border-radius: 50%; box-shadow: 0 0 12px ${color}; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 13px;">${count}</div>`,
@@ -523,7 +559,19 @@
     );
 
     unsubMobile = isMobile.subscribe((v) => { mobile = v; });
-    unsubSituations = situations.subscribe((list) => syncMarkers(list));
+    unsubSituations = situations.subscribe((list) => {
+      lastList = list;
+      syncMarkers(list);
+    });
+
+    // Al cambiar el filtro se re-proyectan los pines y el mapa vuela a
+    // encuadrarlos: el usuario ve de inmediato dónde está lo que pidió.
+    unsubFilter = reportFilter.subscribe((mode) => {
+      if (mode === filterMode) return;
+      filterMode = mode;
+      syncMarkers(lastList);
+      fitToFiltered();
+    });
     unsubFocus = mapFocus.subscribe((f) => {
       if (f && map) {
         autoFocused = true; // un enfoque manual (clic en un sector) cancela el auto-enfoque
@@ -548,11 +596,12 @@
     if (unsubFocus) unsubFocus();
     if (unsubSectors) unsubSectors();
     if (unsubMobile) unsubMobile();
+    if (unsubFilter) unsubFilter();
     if (map) map.remove();
   });
 </script>
 
-<div class="card" style="padding: 20px;">
+<div class="card" style="padding: 20px;" bind:this={cardEl}>
   <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 10px;">
     Mapa de Situación en Tiempo Real
   </h2>

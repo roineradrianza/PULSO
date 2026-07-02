@@ -21,6 +21,10 @@ function getTodayInVet() {
 // Filtro de fecha seleccionado
 export const selectedDate = writable('');
 
+// Filtro global por tipo de reporte: 'all' | 'incidents' | 'pets'.
+// Lo comparten el mapa y la lista de sectores para que ambos muestren lo mismo.
+export const reportFilter = writable('all');
+
 // Datos cargados desde la API.
 export const situations = writable([]);
 export const sectorStats = writable([]);

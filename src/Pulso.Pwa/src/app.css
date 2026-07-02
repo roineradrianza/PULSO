@@ -10,6 +10,8 @@
     --danger-red: #ef4444;
     --warning-amber: #f59e0b;
     --info-blue: #3b82f6;
+    /* Identidad de los reportes de mascotas (pines, badges y filtro). */
+    --pet-gold: #c9975a;
 }
 
 * {

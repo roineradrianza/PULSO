@@ -7,6 +7,7 @@
   import MetricsDashboard from './components/MetricsDashboard.svelte';
   import MapView from './components/MapView.svelte';
   import SectorsList from './components/SectorsList.svelte';
+  import ReportFilter from './components/ReportFilter.svelte';
   import ReportForm from './components/ReportForm.svelte';
   import Toast from './components/Toast.svelte';
   import { online, isMobile, pendingCount, showToast, selectedDate } from './lib/stores.js';
@@ -105,6 +106,8 @@
     <Header />
     <SyncCard on:synced={refreshPending} />
     <StatsDashboard />
+
+    <ReportFilter />
 
     <div class="workspace-grid">
       <MapView />
