@@ -32,6 +32,9 @@ builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
 builder.Services.AddSingleton<ISituationRepository, SituationRepository>();
 builder.Services.AddSingleton<IPublicDataRepository, PublicDataRepository>();
 
+// Cliente para el proxy de fotos (MediaEndpoints) hacia el bucket público de Supabase.
+builder.Services.AddHttpClient(nameof(MediaEndpoints));
+
 // IP real del cliente: la API corre detrás de Caddy en el MISMO host, así que sin
 // esto toda petición se vería como loopback y el rate limit por IP sería inútil.
 // Confiamos en X-Forwarded-For SOLO del proxy loopback (Caddy local).
@@ -150,6 +153,7 @@ static string ClientIp(HttpContext ctx) => ctx.Connection.RemoteIpAddress?.ToStr
 // Registro de endpoints por área.
 app.MapPulsoApiEndpoints();   // ingesta directa + consultas de situación
 app.MapPublicDataEndpoints(); // Open Data API (contrato público + OAS 3.1)
+app.MapMediaEndpoints();      // proxy de fotos hacia Storage
 app.MapTelegramWebhook();     // adaptador de Telegram
 app.MapWhatsAppWebhook();     // adaptador de WhatsApp
 app.MapStreamEndpoint();      // SSE en tiempo real (señal de incidentes nuevos)

@@ -27,7 +27,8 @@ public sealed class SituationRepository : ISituationRepository
         bool needs_review,
         bool found_person_verified,
         DateTime created_at,
-        string? affected_person_name);
+        string? affected_person_name,
+        string? pet_report_type);
 
     private record DbCommentDto(Guid id, Guid incident_id, string raw_text, DateTime created_at);
     private record DbCommentResult(Guid id, DateTime created_at);
@@ -66,7 +67,8 @@ public sealed class SituationRepository : ISituationRepository
                 (COALESCE(triage_provider, 'gemini') <> 'gemini') as needs_review,
                 COALESCE(found_person_verified, false) as found_person_verified,
                 created_at,
-                affected_person_name
+                affected_person_name,
+                pet_report_type
             FROM public.incidents
             WHERE status != 'DUPLICATE'"
             + (hasDate ? " AND created_at >= @utcStart AND created_at <= @utcEnd" : "")
@@ -101,18 +103,21 @@ public sealed class SituationRepository : ISituationRepository
             row.is_hardware_gps,
             row.needs_review,
             row.found_person_verified,
-            row.created_at)).ToList();
+            row.created_at,
+            row.pet_report_type)).ToList();
     }
+
+    private record DbSituationDetail(string raw_text, string? media_file_url);
 
     public async Task<SituationDetail?> GetSituationDetailAsync(Guid id)
     {
         await using var conn = await _dataSource.OpenConnectionAsync();
-        var rawText = await conn.QueryFirstOrDefaultAsync<string>(
-            "SELECT raw_text FROM public.incidents WHERE id = @id AND status != 'DUPLICATE'",
+        var row = await conn.QueryFirstOrDefaultAsync<DbSituationDetail>(
+            "SELECT raw_text, media_file_url FROM public.incidents WHERE id = @id AND status != 'DUPLICATE'",
             new { id });
 
-        if (rawText == null) return null;
-        return new SituationDetail(id.ToString(), rawText);
+        if (row == null) return null;
+        return new SituationDetail(id.ToString(), row.raw_text, row.media_file_url);
     }
 
     public async Task<List<CommentDto>?> GetCommentsAsync(Guid incidentId)

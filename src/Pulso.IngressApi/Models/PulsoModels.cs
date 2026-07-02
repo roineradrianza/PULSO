@@ -26,13 +26,17 @@ public record SituationItem(
     // principal de IA): se muestra como "por confirmar" en la interfaz.
     [property: JsonPropertyName("needs_review")] bool NeedsReview,
     [property: JsonPropertyName("found_person_verified")] bool FoundPersonVerified,
-    [property: JsonPropertyName("created_at")] DateTime CreatedAt
+    [property: JsonPropertyName("created_at")] DateTime CreatedAt,
+    // Para distinguir "mascota perdida" de "mascota encontrada" en el mapa.
+    [property: JsonPropertyName("pet_report_type")] string? PetReportType = null
 );
 
 // Detalle pesado de un incidente (texto crudo), servido bajo demanda al abrir el popup.
 public record SituationDetail(
     [property: JsonPropertyName("id")] string Id,
-    [property: JsonPropertyName("raw_text")] string RawText
+    [property: JsonPropertyName("raw_text")] string RawText,
+    // Foto del reporte para mostrar en el popup del mapa, si el ciudadano adjuntó una.
+    [property: JsonPropertyName("media_file_url")] string? MediaFileUrl = null
 );
 
 // Totales agregados para las tarjetas del dashboard (independientes del subconjunto cargado).
