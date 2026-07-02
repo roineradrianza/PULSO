@@ -15,7 +15,11 @@ namespace Pulso.AiWorker.Tests;
 public class GeminiTriageServiceTests
 {
     // Línea base válida: cada test parte de esto y solo cambia lo que quiere probar.
-    private static TriageResult ValidResult(string severity = "HIGH", string category = "SEARCH_AND_RESCUE") =>
+    private static TriageResult ValidResult(
+        string severity = "HIGH",
+        string category = "SEARCH_AND_RESCUE",
+        string? petReportType = null,
+        bool? isInappropriateContent = null) =>
         new(
             Severity: severity,
             Category: category,
@@ -26,7 +30,9 @@ public class GeminiTriageServiceTests
             Sector: "La Guaira",
             IsPersonFound: false,
             FoundPersonName: null,
-            FoundPersonDocument: null);
+            FoundPersonDocument: null,
+            PetReportType: petReportType,
+            IsInappropriateContent: isInappropriateContent);
 
     private static GeminiTriageService CreateService(ILlmStructuredClient llmClient, bool withApiKey)
     {
@@ -120,6 +126,61 @@ public class GeminiTriageServiceTests
         Assert.Equal("fallback_local", result.TriageProvider);
         Assert.Contains(result.Severity, IncidentTaxonomy.Severities);
         Assert.Contains(result.Category, IncidentTaxonomy.Categories);
+    }
+
+    // Un reporte de mascota nunca es una emergencia real: la severidad se fuerza a LOW
+    // sin importar lo que devuelva el modelo (evita que texto emotivo dispare HIGH/CRITICAL).
+    [Theory]
+    [InlineData("HIGH")]
+    [InlineData("CRITICAL")]
+    public async Task TriageAsync_PetCategory_ForcesLowSeverity_RegardlessOfModelOutput(string modelSeverity)
+    {
+        var client = new StubLlmClient(ValidResult(severity: modelSeverity, category: "LOST_FOUND_PET"));
+        var service = CreateService(client, withApiKey: true);
+
+        var result = await service.TriageAsync("se me perdió mi perro", null, CancellationToken.None);
+
+        Assert.Equal("LOW", result.Severity);
+        Assert.Equal("LOST_FOUND_PET", result.Category);
+    }
+
+    [Theory]
+    [InlineData("MAYBE")]         // valor inventado
+    [InlineData("lost")]          // minúsculas (el enum real es en mayúsculas)
+    public async Task TriageAsync_PetReportTypeOutOfVocabulary_IsCleared(string badType)
+    {
+        var client = new StubLlmClient(ValidResult(category: "LOST_FOUND_PET", petReportType: badType));
+        var service = CreateService(client, withApiKey: true);
+
+        var result = await service.TriageAsync("reporte cualquiera", null, CancellationToken.None);
+
+        Assert.Equal(string.Empty, result.PetReportType);
+    }
+
+    [Theory]
+    [InlineData("LOST")]
+    [InlineData("FOUND")]
+    public async Task TriageAsync_PetReportTypeValid_PassesThrough(string validType)
+    {
+        var client = new StubLlmClient(ValidResult(category: "LOST_FOUND_PET", petReportType: validType));
+        var service = CreateService(client, withApiKey: true);
+
+        var result = await service.TriageAsync("reporte cualquiera", null, CancellationToken.None);
+
+        Assert.Equal(validType, result.PetReportType);
+    }
+
+    [Fact]
+    public async Task TriageAsync_IsInappropriateContentTrue_PassesThroughUnchanged()
+    {
+        // No es parte del saneamiento de taxonomía: solo confirma que SanitizeTaxonomy
+        // no la descarta al reconstruir el resultado con "with".
+        var client = new StubLlmClient(ValidResult(isInappropriateContent: true));
+        var service = CreateService(client, withApiKey: true);
+
+        var result = await service.TriageAsync("reporte con imagen", null, CancellationToken.None);
+
+        Assert.True(result.IsInappropriateContent);
     }
 
     // Doble de prueba escrito a mano (sin librería de mocking): la interfaz es pequeña

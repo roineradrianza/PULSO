@@ -16,6 +16,7 @@ public class SchemaEnumRegistryTests
         Assert.NotNull(overrides);
         Assert.Equal(IncidentTaxonomy.Severities, overrides!["severity"]);
         Assert.Equal(IncidentTaxonomy.Categories, overrides["category"]);
+        Assert.Equal(new[] { "LOST", "FOUND" }, overrides["pet_report_type"]);
     }
 
     [Fact]
