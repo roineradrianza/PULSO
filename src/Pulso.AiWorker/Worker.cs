@@ -61,8 +61,7 @@ public class Worker : BackgroundService
     // no se descarta el reporte, solo se omite la foto (ver ProcessMessageAsync).
     private const string InappropriateMediaMessage =
         "No pudimos procesar la imagen que enviaste porque no cumple con nuestras " +
-        "políticas de contenido. Si tu reporte es real, puedes reenviarlo describiéndolo " +
-        "por texto, sin la imagen.";
+        "políticas de contenido, pero tu reporte de todos modos quedó registrado sin la foto.";
 
     private readonly ILogger<Worker>          _logger;
     private readonly IConnectionMultiplexer   _redis;
