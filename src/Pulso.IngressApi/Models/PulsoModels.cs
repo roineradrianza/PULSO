@@ -28,7 +28,8 @@ public record SituationItem(
     [property: JsonPropertyName("found_person_verified")] bool FoundPersonVerified,
     [property: JsonPropertyName("created_at")] DateTime CreatedAt,
     // Para distinguir "mascota perdida" de "mascota encontrada" en el mapa.
-    [property: JsonPropertyName("pet_report_type")] string? PetReportType = null
+    [property: JsonPropertyName("pet_report_type")] string? PetReportType = null,
+    [property: JsonPropertyName("pet_name")] string? PetName = null
 );
 
 // Detalle pesado de un incidente (texto crudo), servido bajo demanda al abrir el popup.
@@ -54,6 +55,9 @@ public record LocationStat(
     [property: JsonPropertyName("people_found")] List<string> PeopleFound,
     // Nombres de personas en peligro (buscadas/atrapadas) reportadas en el sector.
     [property: JsonPropertyName("people_searched")] List<string> PeopleSearched,
+    // Mascotas encontradas (alguien las tiene/vio) vs. perdidas (el dueño las busca) en el sector.
+    [property: JsonPropertyName("pets_found")] List<string> PetsFound,
+    [property: JsonPropertyName("pets_lost")] List<string> PetsLost,
     // Centroide aproximado del sector para centrar el mapa sin depender de la lista de incidentes.
     [property: JsonPropertyName("latitude")] double? Latitude,
     [property: JsonPropertyName("longitude")] double? Longitude

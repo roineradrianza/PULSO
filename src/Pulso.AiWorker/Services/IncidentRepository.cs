@@ -108,17 +108,19 @@ public sealed class IncidentRepository : IIncidentRepository
     }
 
     /// <inheritdoc/>
-    public async Task SavePetReportTypeAsync(
+    public async Task SavePetDetailsAsync(
         Guid incidentId,
         string petReportType,
+        string? petName,
         CancellationToken cancellationToken)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync(cancellationToken);
 
         await using var cmd = new NpgsqlCommand(
-            "UPDATE public.incidents SET pet_report_type = @pet_report_type WHERE id = @id", conn);
+            "UPDATE public.incidents SET pet_report_type = @pet_report_type, pet_name = @pet_name WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("pet_report_type", petReportType);
+        cmd.Parameters.AddWithValue("pet_name", (object?)petName ?? DBNull.Value);
         cmd.Parameters.AddWithValue("id",               incidentId);
 
         await cmd.ExecuteNonQueryAsync(cancellationToken);

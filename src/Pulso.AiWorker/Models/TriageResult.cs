@@ -74,6 +74,10 @@ public record TriageResult(
     [property: Description("LOST si el ciudadano perdió su propia mascota, FOUND si encontró/vio una mascota que no es suya y busca a su dueño. Cadena vacía si el reporte no es sobre una mascota.")]
     string? PetReportType = null,
 
+    [property: JsonPropertyName("pet_name")]
+    [property: Description("Nombre de la mascota si el reporte lo menciona explícitamente (ej. 'Firulais', 'Michi'). Cadena vacía si no se menciona ningún nombre.")]
+    string? PetName = null,
+
     [property: JsonPropertyName("is_inappropriate_content")]
     [property: Description("true si la imagen adjunta contiene contenido explícito, sexual, spam o de abuso, ajeno al propósito de la plataforma (reportar emergencias o mascotas). Una imagen de una mascota, daño estructural, incendio, inundación o persona en una emergencia real NO es inapropiada aunque sea gráfica. false si no aplica o no hay imagen.")]
     bool? IsInappropriateContent = null

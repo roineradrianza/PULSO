@@ -28,7 +28,8 @@ public sealed class SituationRepository : ISituationRepository
         bool found_person_verified,
         DateTime created_at,
         string? affected_person_name,
-        string? pet_report_type);
+        string? pet_report_type,
+        string? pet_name);
 
     private record DbCommentDto(Guid id, Guid incident_id, string raw_text, DateTime created_at);
     private record DbCommentResult(Guid id, DateTime created_at);
@@ -41,6 +42,8 @@ public sealed class SituationRepository : ISituationRepository
         string sector_status,
         string? people_names,
         string? searched_names,
+        string? pets_found_names,
+        string? pets_lost_names,
         double latitude,
         double longitude);
 
@@ -68,7 +71,8 @@ public sealed class SituationRepository : ISituationRepository
                 COALESCE(found_person_verified, false) as found_person_verified,
                 created_at,
                 affected_person_name,
-                pet_report_type
+                pet_report_type,
+                pet_name
             FROM public.incidents
             WHERE status != 'DUPLICATE'"
             + (hasDate ? " AND created_at >= @utcStart AND created_at <= @utcEnd" : "")
@@ -104,7 +108,8 @@ public sealed class SituationRepository : ISituationRepository
             row.needs_review,
             row.found_person_verified,
             row.created_at,
-            row.pet_report_type)).ToList();
+            row.pet_report_type,
+            row.pet_name)).ToList();
     }
 
     private record DbSituationDetail(string raw_text, string? media_file_url);
@@ -206,6 +211,8 @@ public sealed class SituationRepository : ISituationRepository
                 END as sector_status,
                 string_agg(found_person_name, ',') filter (where found_person_name is not null) as people_names,
                 string_agg(affected_person_name, ',') filter (where affected_person_name is not null) as searched_names,
+                string_agg(pet_name, ',') filter (where pet_name is not null and pet_report_type = 'FOUND') as pets_found_names,
+                string_agg(pet_name, ',') filter (where pet_name is not null and pet_report_type = 'LOST') as pets_lost_names,
                 AVG(ST_Y(coordinates::geometry)) as latitude,
                 AVG(ST_X(coordinates::geometry)) as longitude
             FROM public.incidents
@@ -240,8 +247,16 @@ public sealed class SituationRepository : ISituationRepository
                 ? new List<string>()
                 : row.searched_names.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
 
+            var petsFoundList = string.IsNullOrEmpty(row.pets_found_names)
+                ? new List<string>()
+                : row.pets_found_names.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
+
+            var petsLostList = string.IsNullOrEmpty(row.pets_lost_names)
+                ? new List<string>()
+                : row.pets_lost_names.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).ToList();
+
             var city = string.IsNullOrEmpty(row.city_name) ? null : row.city_name;
-            return new LocationStat(row.sector_name, city, row.sector_status, (int)row.incident_count, peopleList, searchedList, row.latitude, row.longitude);
+            return new LocationStat(row.sector_name, city, row.sector_status, (int)row.incident_count, peopleList, searchedList, petsFoundList, petsLostList, row.latitude, row.longitude);
         }).ToList();
     }
 

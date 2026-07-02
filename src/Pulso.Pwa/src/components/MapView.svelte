@@ -218,6 +218,12 @@
       searched.textContent = `Persona buscada: ${sit.affected_person_name}`;
       meta.append(searched);
     }
+    if (sit.pet_name) {
+      const petName = document.createElement('div');
+      petName.style.cssText = `color: ${PET_COLOR}; font-weight: 600;`;
+      petName.textContent = `Nombre: ${sit.pet_name}`;
+      meta.append(petName);
+    }
 
     wrap.append(title);
     if (verificationBadge) {

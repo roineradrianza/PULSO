@@ -38,11 +38,12 @@ public interface IIncidentRepository
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Actualiza la columna <c>pet_report_type</c> ("LOST"/"FOUND") del incidente indicado.
+    /// Actualiza las columnas <c>pet_report_type</c> ("LOST"/"FOUND") y <c>pet_name</c> del incidente indicado.
     /// </summary>
-    Task SavePetReportTypeAsync(
+    Task SavePetDetailsAsync(
         Guid incidentId,
         string petReportType,
+        string? petName,
         CancellationToken cancellationToken);
 
     /// <summary>

@@ -390,10 +390,10 @@ public class Worker : BackgroundService
             }
         }
 
-        // 7c. Guardar la señal perdida/encontrada si el reporte es sobre una mascota.
+        // 7c. Guardar la señal perdida/encontrada (y el nombre, si lo hay) si el reporte es sobre una mascota.
         if (!string.IsNullOrEmpty(triage.PetReportType) && incidentId.HasValue)
         {
-            await _incidentRepo.SavePetReportTypeAsync(incidentId.Value, triage.PetReportType, cancellationToken);
+            await _incidentRepo.SavePetDetailsAsync(incidentId.Value, triage.PetReportType, triage.PetName, cancellationToken);
         }
 
         // 8. Confirmación final al ciudadano si el reporte quedó con ubicación (GPS o

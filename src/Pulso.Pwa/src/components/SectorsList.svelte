@@ -17,12 +17,19 @@
     return `Caracas, ${stat.sector}`;
   }
 
+  // Insensible a acentos (buscar "jose" debe encontrar "José").
+  function normalize(str) {
+    return str.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  }
+
   $: filtered = $sectorStats.filter((stat) => {
-    const label = getSectorLabel(stat).toLowerCase();
-    const queryLower = query.toLowerCase().trim();
-    return label.includes(queryLower) ||
-      stat.people_found.some((p) => p.toLowerCase().includes(queryLower)) ||
-      (stat.people_searched ?? []).some((p) => p.toLowerCase().includes(queryLower));
+    const label = normalize(getSectorLabel(stat));
+    const q = normalize(query.trim());
+    return label.includes(q) ||
+      stat.people_found.some((p) => normalize(p).includes(q)) ||
+      (stat.people_searched ?? []).some((p) => normalize(p).includes(q)) ||
+      (stat.pets_found ?? []).some((p) => normalize(p).includes(q)) ||
+      (stat.pets_lost ?? []).some((p) => normalize(p).includes(q));
   });
 
   function focusSector(stat) {
@@ -122,6 +129,26 @@
                 <div class="people-badges">
                   {#each stat.people_searched as person}
                     <span class="person-badge searched" title={person}>{person}</span>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+            {#if (stat.pets_found ?? []).length > 0}
+              <div class="sector-people-container">
+                <span class="people-label">Mascotas encontradas ({stat.pets_found.length}):</span>
+                <div class="people-badges">
+                  {#each stat.pets_found as pet}
+                    <span class="person-badge" title={pet}>🐾 {pet}</span>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+            {#if (stat.pets_lost ?? []).length > 0}
+              <div class="sector-people-container">
+                <span class="people-label">Mascotas perdidas ({stat.pets_lost.length}):</span>
+                <div class="people-badges">
+                  {#each stat.pets_lost as pet}
+                    <span class="person-badge searched" title={pet}>🐾 {pet}</span>
                   {/each}
                 </div>
               </div>
