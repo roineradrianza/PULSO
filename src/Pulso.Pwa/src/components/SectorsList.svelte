@@ -93,7 +93,7 @@
         No encontramos ningún sector o persona con ese nombre.
       </p>
     {:else}
-      {#each filtered as stat (stat.sector)}
+      {#each filtered as stat (`${stat.sector}|${stat.city ?? ''}`)}
         <div
           class="sector-card"
           role="button"
