@@ -92,11 +92,16 @@ public sealed class GeminiTriageService : IGeminiTriageService
         if (category == "LOST_FOUND_PET")
             severity = "LOW";
 
-        var petReportType = string.IsNullOrEmpty(result.PetReportType) || TriageResultSchemaRegistration.PetReportTypes.Contains(result.PetReportType)
-            ? result.PetReportType
-            : "";
-        if (petReportType != result.PetReportType)
+        var petReportType = result.PetReportType;
+        if (petReportType == "NONE")
+        {
+            petReportType = "";
+        }
+        else if (!string.IsNullOrEmpty(petReportType) && !TriageResultSchemaRegistration.PetReportTypes.Contains(petReportType))
+        {
             _logger.LogWarning("Triage devolvió un pet_report_type fuera del vocabulario ('{petReportType}'); se descarta.", result.PetReportType);
+            petReportType = "";
+        }
 
         // La categoría manda: los campos de mascota solo tienen sentido en LOST_FOUND_PET.
         // Persistirlos en un reporte humano (p. ej. si el modelo los rellena de más)

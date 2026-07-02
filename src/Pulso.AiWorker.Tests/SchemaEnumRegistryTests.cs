@@ -16,9 +16,9 @@ public class SchemaEnumRegistryTests
         Assert.NotNull(overrides);
         Assert.Equal(IncidentTaxonomy.Severities, overrides!["severity"]);
         Assert.Equal(IncidentTaxonomy.Categories, overrides["category"]);
-        // La cadena vacía ("no es un reporte de mascota") debe estar en el enum del
+        // "NONE" ("no es un reporte de mascota") debe estar en el enum del
         // esquema: sin ella el modelo no puede declinar y se ve forzado a LOST/FOUND.
-        Assert.Equal(new[] { "", "LOST", "FOUND" }, overrides["pet_report_type"]);
+        Assert.Equal(new[] { "NONE", "LOST", "FOUND" }, overrides["pet_report_type"]);
     }
 
     [Fact]

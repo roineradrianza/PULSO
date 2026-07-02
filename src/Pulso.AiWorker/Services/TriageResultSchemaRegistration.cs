@@ -15,10 +15,10 @@ internal static class TriageResultSchemaRegistration
     // (no private) para que GeminiTriageService.SanitizeTaxonomy lo reutilice.
     internal static readonly string[] PetReportTypes = { "LOST", "FOUND" };
 
-    // El enum que ve el modelo incluye además la cadena vacía ("no es un reporte de
+    // El enum que ve el modelo incluye además "NONE" ("no es un reporte de
     // mascota"). Sin ella, la decodificación restringida de structured outputs no puede
     // obedecer al prompt y fuerza LOST/FOUND fantasma en reportes que no traen mascota.
-    private static readonly string[] PetReportTypesSchema = { "", "LOST", "FOUND" };
+    private static readonly string[] PetReportTypesSchema = { "NONE", "LOST", "FOUND" };
 
     [ModuleInitializer]
     internal static void Register()

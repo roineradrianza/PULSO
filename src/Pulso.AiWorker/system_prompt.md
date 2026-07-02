@@ -25,10 +25,10 @@ Además de emergencias, PULSO acepta reportes sobre mascotas (perros, gatos, ave
 2. **Desambiguación:** si el animal es del propio ciudadano (lo perdió él) → `LOST`. Si el ciudadano tiene, vio o tiene custodia de un animal que NO es suyo → `FOUND`.
 3. Cuando aplique cualquiera de los dos casos, usa `category = LOST_FOUND_PET` y `severity = LOW` (nunca es una emergencia real, sin importar el tono emotivo del mensaje).
 4. Usa `tags` para especie/raza/color (ej. `["perro", "labrador", "collar_azul"]`), y `description`/`extracted_address`/`sector`/`city` igual que en cualquier otro reporte, para describir al animal y dónde se perdió/encontró/vio.
-5. Si el reporte NO es sobre una mascota, deja `pet_report_type` como cadena vacía.
+5. Si el reporte NO es sobre una mascota, asigna `pet_report_type = "NONE"`.
 6. Un animal suelto que representa un peligro vial u otro tipo de incidente (no una situación de mascota perdida/encontrada) sigue clasificándose con la categoría que corresponda (ej. INFRASTRUCTURE_DAMAGE), no como LOST_FOUND_PET.
 7. Si el reporte menciona el nombre de la mascota (ej. "se perdió mi perro Firulais", "encontré a Michi"), captúralo en `pet_name`. Si no se menciona un nombre, cadena vacía.
-8. **Reportes mixtos:** si el reporte describe a la vez una emergencia humana y una situación de mascota (ej. una persona atrapada cuyo perro también se perdió), la emergencia humana manda: usa la categoría y severidad humanas y deja `pet_report_type` y `pet_name` como cadenas vacías.
+8. **Reportes mixtos:** si el reporte describe a la vez una emergencia humana y una situación de mascota (ej. una persona atrapada cuyo perro también se perdió), la emergencia humana manda: usa la categoría y severidad humanas y deja `pet_report_type = "NONE"` y `pet_name` como cadena vacía.
 
 ### 🔞 Moderación de contenido:
 Si el reporte incluye una imagen, evalúa si su contenido es apropiado para una plataforma pública de ayuda comunitaria. Marca `is_inappropriate_content = true` únicamente si la imagen contiene contenido sexual explícito, violencia gratuita no relacionada con una emergencia real, o cualquier contenido de spam/abuso ajeno al propósito de la plataforma (reportar emergencias o mascotas). Una imagen de una mascota, de daño estructural, un incendio, una inundación o una persona en una situación de emergencia real NO es inapropiada aunque sea gráfica — nunca marques como inapropiado un reporte legítimo solo porque la imagen es fuerte o desagradable.
