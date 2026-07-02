@@ -95,6 +95,41 @@
     });
   }
 
+  // Overlay de pantalla completa para ver la foto del reporte a tamaño real.
+  // Se agrega directo al body (no al popup/sheet) para quedar por encima de
+  // ambos sin importar cuál esté abierto.
+  function openLightbox(url) {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'pulso-lightbox-backdrop';
+
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = 'Foto ampliada del reporte';
+    img.className = 'pulso-lightbox-img';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'pulso-lightbox-close';
+    closeBtn.textContent = '✕';
+    closeBtn.setAttribute('aria-label', 'Cerrar');
+
+    function close() {
+      backdrop.remove();
+      document.removeEventListener('keydown', onKeydown);
+    }
+    function onKeydown(e) {
+      if (e.key === 'Escape') close();
+    }
+
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) close();
+    });
+    closeBtn.addEventListener('click', close);
+    document.addEventListener('keydown', onKeydown);
+
+    backdrop.append(img, closeBtn);
+    document.body.appendChild(backdrop);
+  }
+
   // Popup construido con nodos DOM + textContent (sin XSS). El texto pesado
   // (raw_text) se carga BAJO DEMANDA al abrir, con estado de carga.
   function buildPopup(sit) {
@@ -354,6 +389,8 @@
         photo.onerror = () => {
           photoSkeleton.style.display = 'none';
         };
+        photo.style.cursor = 'zoom-in';
+        photo.onclick = () => openLightbox(mediaUrl);
         photo.src = mediaUrl;
       }
     }
@@ -602,5 +639,36 @@
     100% {
       background-position: 0 50%;
     }
+  }
+  :global(.pulso-lightbox-backdrop) {
+    position: fixed;
+    inset: 0;
+    z-index: 2500;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+  }
+  :global(.pulso-lightbox-img) {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+  }
+  :global(.pulso-lightbox-close) {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: #fff;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
   }
 </style>
