@@ -20,13 +20,19 @@
 
   // Estado de diff: id -> { marker, sig } para actualizar sin reconstruir todo.
   const markersById = new Map();
-  // Caché de detalle (raw_text) ya descargado, por id.
+  // Caché de detalle ya descargado, por id: { text, mediaUrl }.
   const detailCache = new Map();
 
   const SEVERITY_RANK = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
   const RANK_COLOR = ['var(--info-blue)', 'var(--warning-amber)', 'var(--accent-orange)', 'var(--danger-red)'];
+  const PET_COLOR = '#c9975a';
+
+  function isPetReport(sit) {
+    return sit.category === 'LOST_FOUND_PET';
+  }
 
   function severityColor(sit) {
+    if (isPetReport(sit)) return PET_COLOR;
     if (sit.is_person_found) {
       return sit.found_person_verified ? 'var(--success-green)' : '#7ea085';
     }
@@ -35,7 +41,7 @@
 
   // Firma de lo que afecta el render del marcador (para detectar cambios).
   function signature(sit) {
-    return `${sit.latitude},${sit.longitude},${sit.severity},${sit.is_person_found},${sit.found_person_verified},${sit.is_hardware_gps},${sit.needs_review},${sit.affected_person_name ?? ''}`;
+    return `${sit.latitude},${sit.longitude},${sit.severity},${sit.is_person_found},${sit.found_person_verified},${sit.is_hardware_gps},${sit.needs_review},${sit.affected_person_name ?? ''},${sit.category ?? ''},${sit.pet_report_type ?? ''}`;
   }
 
   // Chip de precisión de ubicación, en lenguaje simple para cualquier persona.
@@ -69,6 +75,14 @@
 
   function buildIcon(sit) {
     const color = severityColor(sit);
+    if (isPetReport(sit)) {
+      return L.divIcon({
+        html: `<div class="interactive-marker-dot" style="background-color: ${color}; width: 20px; height: 20px; border: 2px solid #ffffff; border-radius: 50%; box-shadow: 0 0 10px ${color}; display: flex; align-items: center; justify-content: center; font-size: 11px; transition: transform 0.15s ease-out;">🐾</div>`,
+        className: 'custom-marker-icon',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      });
+    }
     return L.divIcon({
       html: `<div class="interactive-marker-dot" style="background-color: ${color}; width: 14px; height: 14px; border: 2px solid #ffffff; border-radius: 50%; box-shadow: 0 0 10px ${color}; transition: transform 0.15s ease-out;"></div>`,
       className: 'custom-marker-icon',
@@ -86,7 +100,11 @@
 
     const title = document.createElement('h4');
     title.style.cssText = `margin-bottom: 4px; font-family: 'Outfit'; color: ${color};`;
-    title.textContent = sit.is_person_found ? '🟡 Persona reportada a salvo' : '⚠️ Reporte de Incidente';
+    if (isPetReport(sit)) {
+      title.textContent = sit.pet_report_type === 'LOST' ? '🐾 Mascota perdida' : '🐾 Mascota encontrada';
+    } else {
+      title.textContent = sit.is_person_found ? '🟡 Persona reportada a salvo' : '⚠️ Reporte de Incidente';
+    }
 
     let verificationBadge = null;
     let unverifiedNote = null;
@@ -114,6 +132,15 @@
     }
 
     const confidence = buildConfidenceChip(sit);
+
+    // Foto del reporte (si tiene): oculta hasta que se resuelve el detalle, cachea
+    // junto con el texto para no repetir la descarga al reabrir el popup.
+    const photo = document.createElement('img');
+    photo.alt = 'Foto del reporte';
+    photo.loading = 'lazy';
+    photo.style.cssText =
+      'width: 100%; max-height: 140px; object-fit: cover; border-radius: 6px; ' +
+      'margin-bottom: 6px; display: none;';
 
     const body = document.createElement('p');
     body.style.cssText = 'font-size: 12px; margin-bottom: 6px;';
@@ -156,7 +183,7 @@
     if (unverifiedNote) {
       wrap.append(unverifiedNote);
     }
-    wrap.append(body, meta);
+    wrap.append(photo, body, meta);
 
     // --- SECCIÓN DE COMENTARIOS (ANÓNIMOS Y ONLINE-ONLY) ---
     const commentsSection = document.createElement('div');
@@ -305,17 +332,26 @@
     commentsSection.appendChild(form);
     wrap.append(commentsSection);
 
+    function applyDetail(text, mediaUrl) {
+      body.textContent = text || '(sin detalle)';
+      if (mediaUrl) {
+        photo.src = mediaUrl;
+        photo.style.display = 'block';
+      }
+    }
+
     // Detalle lazy: usar caché o descargar.
     const cached = detailCache.get(sit.id);
     if (cached !== undefined) {
-      body.textContent = cached || '(sin detalle)';
+      applyDetail(cached.text, cached.mediaUrl);
     } else {
       body.textContent = 'Cargando detalle…';
       fetchSituationDetail(sit.id)
         .then((d) => {
           const text = d?.raw_text ?? '';
-          detailCache.set(sit.id, text);
-          body.textContent = text || '(sin detalle)';
+          const mediaUrl = d?.media_file_url ?? null;
+          detailCache.set(sit.id, { text, mediaUrl });
+          applyDetail(text, mediaUrl);
         })
         .catch(() => {
           body.textContent = '(no se pudo cargar el detalle)';
