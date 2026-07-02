@@ -19,6 +19,7 @@ public class GeminiTriageServiceTests
         string severity = "HIGH",
         string category = "SEARCH_AND_RESCUE",
         string? petReportType = null,
+        string? petName = null,
         bool? isInappropriateContent = null) =>
         new(
             Severity: severity,
@@ -32,6 +33,7 @@ public class GeminiTriageServiceTests
             FoundPersonName: null,
             FoundPersonDocument: null,
             PetReportType: petReportType,
+            PetName: petName,
             IsInappropriateContent: isInappropriateContent);
 
     private static GeminiTriageService CreateService(ILlmStructuredClient llmClient, bool withApiKey)
@@ -168,6 +170,37 @@ public class GeminiTriageServiceTests
         var result = await service.TriageAsync("reporte cualquiera", null, CancellationToken.None);
 
         Assert.Equal(validType, result.PetReportType);
+    }
+
+    // La categoría manda sobre los campos de mascota: un reporte humano no debe llegar
+    // a la base con pet_report_type/pet_name, aunque el modelo los haya rellenado
+    // (structured outputs puede forzar un valor del enum en reportes sin mascota).
+    [Theory]
+    [InlineData("LOST")]
+    [InlineData("FOUND")]
+    public async Task TriageAsync_PetFieldsWithNonPetCategory_ClearsPetFields(string petType)
+    {
+        var client = new StubLlmClient(ValidResult(category: "SEARCH_AND_RESCUE", petReportType: petType, petName: "Rocky"));
+        var service = CreateService(client, withApiKey: true);
+
+        var result = await service.TriageAsync("hay una persona atrapada", null, CancellationToken.None);
+
+        Assert.Equal(string.Empty, result.PetReportType);
+        Assert.Equal(string.Empty, result.PetName);
+        Assert.Equal("SEARCH_AND_RESCUE", result.Category);
+        Assert.Equal("HIGH", result.Severity);
+    }
+
+    [Fact]
+    public async Task TriageAsync_PetFieldsWithPetCategory_ArePreserved()
+    {
+        var client = new StubLlmClient(ValidResult(category: "LOST_FOUND_PET", petReportType: "LOST", petName: "Luna"));
+        var service = CreateService(client, withApiKey: true);
+
+        var result = await service.TriageAsync("se me perdió mi perra Luna", null, CancellationToken.None);
+
+        Assert.Equal("LOST", result.PetReportType);
+        Assert.Equal("Luna", result.PetName);
     }
 
     [Fact]

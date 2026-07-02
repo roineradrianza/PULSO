@@ -120,7 +120,9 @@ public sealed class IncidentRepository : IIncidentRepository
         await using var cmd = new NpgsqlCommand(
             "UPDATE public.incidents SET pet_report_type = @pet_report_type, pet_name = @pet_name WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("pet_report_type", petReportType);
-        cmd.Parameters.AddWithValue("pet_name", (object?)petName ?? DBNull.Value);
+        // "Sin nombre" es ausencia de dato: se guarda NULL, nunca cadena vacía, para que
+        // los agregados por sector no tengan que limpiar cadenas en cada consumidor.
+        cmd.Parameters.AddWithValue("pet_name", string.IsNullOrWhiteSpace(petName) ? DBNull.Value : petName);
         cmd.Parameters.AddWithValue("id",               incidentId);
 
         await cmd.ExecuteNonQueryAsync(cancellationToken);
