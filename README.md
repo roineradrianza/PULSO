@@ -103,6 +103,11 @@ dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=TU_DB_HOST;P
 dotnet user-secrets set "ConnectionStrings:UpstashRedis" "localhost:6379,password=TU_REDIS_PASSWORD,abortConnect=false"
 dotnet user-secrets set "Telegram:BotToken" "TU_TELEGRAM_BOT_TOKEN"
 dotnet user-secrets set "GeminiApiKey" "TU_GEMINI_API_KEY"
+
+# Required only to upload photos attached to reports (e.g. pet reports) to Supabase Storage:
+dotnet user-secrets set "Supabase:Url" "https://TU_PROJECT_ID.supabase.co"
+dotnet user-secrets set "Supabase:ServiceRoleKey" "TU_SUPABASE_SERVICE_ROLE_KEY"
+dotnet user-secrets set "Supabase:BucketName" "reports"
 ```
 
 ### 2. Run the database migrations

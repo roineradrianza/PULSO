@@ -35,7 +35,7 @@ public sealed class SupabaseStorageService : IMediaStorageService
             return null;
         }
 
-        var objectKey = IncidentMediaPaths.ObjectKey(incidentId);
+        var objectKey = IncidentMediaPaths.PetObjectKey(incidentId);
         var uploadUrl = $"{supabaseUrl.TrimEnd('/')}/storage/v1/object/{bucketName}/{objectKey}";
 
         try
