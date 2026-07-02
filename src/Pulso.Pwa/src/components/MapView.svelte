@@ -134,7 +134,13 @@
     const confidence = buildConfidenceChip(sit);
 
     // Foto del reporte (si tiene): oculta hasta que se resuelve el detalle, cachea
-    // junto con el texto para no repetir la descarga al reabrir el popup.
+    // junto con el texto para no repetir la descarga al reabrir el popup. El
+    // skeleton se muestra mientras la imagen carga (no solo mientras se resuelve
+    // el detalle: la URL puede tardar en traer los bytes aunque el detalle ya llegó).
+    const photoSkeleton = document.createElement('div');
+    photoSkeleton.className = 'photo-skeleton';
+    photoSkeleton.style.display = 'none';
+
     const photo = document.createElement('img');
     photo.alt = 'Foto del reporte';
     photo.loading = 'lazy';
@@ -183,7 +189,7 @@
     if (unverifiedNote) {
       wrap.append(unverifiedNote);
     }
-    wrap.append(photo, body, meta);
+    wrap.append(photoSkeleton, photo, body, meta);
 
     // --- SECCIÓN DE COMENTARIOS (ANÓNIMOS Y ONLINE-ONLY) ---
     const commentsSection = document.createElement('div');
@@ -335,8 +341,17 @@
     function applyDetail(text, mediaUrl) {
       body.textContent = text || '(sin detalle)';
       if (mediaUrl) {
+        photoSkeleton.style.display = 'block';
+        photo.onload = () => {
+          photoSkeleton.style.display = 'none';
+          photo.style.display = 'block';
+        };
+        // Si la foto falla, se retira el skeleton sin mostrar un ícono de error:
+        // el resto del popup (texto, ubicación) sigue siendo útil sin ella.
+        photo.onerror = () => {
+          photoSkeleton.style.display = 'none';
+        };
         photo.src = mediaUrl;
-        photo.style.display = 'block';
       }
     }
 
@@ -546,5 +561,27 @@
   }
   :global(.leaflet-popup-content::-webkit-scrollbar-thumb:hover) {
     background: rgba(255, 255, 255, 0.3);
+  }
+  :global(.photo-skeleton) {
+    width: 100%;
+    height: 140px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.04) 25%,
+      rgba(255, 255, 255, 0.09) 37%,
+      rgba(255, 255, 255, 0.04) 63%
+    );
+    background-size: 400% 100%;
+    animation: pulso-skeleton-shimmer 1.4s ease infinite;
+  }
+  @keyframes pulso-skeleton-shimmer {
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0 50%;
+    }
   }
 </style>
