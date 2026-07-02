@@ -143,7 +143,6 @@
 
     const photo = document.createElement('img');
     photo.alt = 'Foto del reporte';
-    photo.loading = 'lazy';
     photo.style.cssText =
       'width: 100%; max-height: 140px; object-fit: cover; border-radius: 6px; ' +
       'margin-bottom: 6px; display: none;';
