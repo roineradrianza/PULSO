@@ -91,6 +91,40 @@ public sealed class IncidentRepository : IIncidentRepository
     }
 
     /// <inheritdoc/>
+    public async Task SaveMediaUrlAsync(
+        Guid incidentId,
+        string mediaUrl,
+        CancellationToken cancellationToken)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        await using var cmd = new NpgsqlCommand(
+            "UPDATE public.incidents SET media_file_url = @media_url WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("media_url", mediaUrl);
+        cmd.Parameters.AddWithValue("id",         incidentId);
+
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task SavePetReportTypeAsync(
+        Guid incidentId,
+        string petReportType,
+        CancellationToken cancellationToken)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        await using var cmd = new NpgsqlCommand(
+            "UPDATE public.incidents SET pet_report_type = @pet_report_type WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("pet_report_type", petReportType);
+        cmd.Parameters.AddWithValue("id",               incidentId);
+
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<Guid?> TryAttachLocationToRecentAsync(
         string channel,
         string phone,

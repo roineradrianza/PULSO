@@ -35,12 +35,18 @@ builder.Services.AddHttpClient("nominatim", client =>
 builder.Services.AddHttpClient(nameof(GeminiStructuredClient))
     .AddStandardResilienceHandler();
 
+// Mismo resilience handler para la subida de fotos a Supabase Storage: es otra
+// llamada saliente que puede fallar transitoriamente.
+builder.Services.AddHttpClient(nameof(SupabaseStorageService))
+    .AddStandardResilienceHandler();
+
 // ── Servicios de dominio ──────────────────────────────────────────────────────
 // Cliente LLM abstracto (hoy Gemini): lo consume el geocodificador por LLM, desacoplado
 // del proveedor concreto. Para cambiar de LLM, reemplazar solo esta línea.
 builder.Services.AddSingleton<ILlmStructuredClient,    GeminiStructuredClient>();
 builder.Services.AddSingleton<IGeminiTriageService,    GeminiTriageService>();
 builder.Services.AddSingleton<IMediaDownloadService,   MediaDownloadService>();
+builder.Services.AddSingleton<IMediaStorageService,    SupabaseStorageService>();
 builder.Services.AddSingleton<IIncidentRepository,     IncidentRepository>();
 builder.Services.AddSingleton<IOutboundMessageService, OutboundMessageService>();
 

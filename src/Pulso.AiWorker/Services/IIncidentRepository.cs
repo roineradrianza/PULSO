@@ -30,6 +30,22 @@ public interface IIncidentRepository
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Actualiza la columna <c>media_file_url</c> del incidente indicado.
+    /// </summary>
+    Task SaveMediaUrlAsync(
+        Guid incidentId,
+        string mediaUrl,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Actualiza la columna <c>pet_report_type</c> ("LOST"/"FOUND") del incidente indicado.
+    /// </summary>
+    Task SavePetReportTypeAsync(
+        Guid incidentId,
+        string petReportType,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Adjunta coordenadas GPS de hardware al reporte MÁS RECIENTE del mismo
     /// remitente que aún no tiene ubicación (dentro de una ventana de tiempo).
     /// Sirve para correlacionar una "ubicación suelta" enviada como respuesta a la

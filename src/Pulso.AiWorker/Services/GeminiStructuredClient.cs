@@ -19,6 +19,17 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
     // (y diverja) entre este cliente y sus consumidores (p. ej. GeminiTriageService).
     internal const string DefaultModelName = "gemini-3.1-flash-lite";
 
+    // Bloqueo nativo de Gemini para las categorías de daño más graves, aplicado a
+    // cualquier llamada (texto o imagen). Es un respaldo tosco: la señal principal de
+    // moderación es el campo is_inappropriate_content del propio responseSchema.
+    private static readonly object[] SafetySettings =
+    {
+        new { category = "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold = "BLOCK_MEDIUM_AND_ABOVE" },
+        new { category = "HARM_CATEGORY_DANGEROUS_CONTENT",  threshold = "BLOCK_MEDIUM_AND_ABOVE" },
+        new { category = "HARM_CATEGORY_HARASSMENT",         threshold = "BLOCK_MEDIUM_AND_ABOVE" },
+        new { category = "HARM_CATEGORY_HATE_SPEECH",        threshold = "BLOCK_MEDIUM_AND_ABOVE" }
+    };
+
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly ILogger<GeminiStructuredClient> _logger;
@@ -147,7 +158,8 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
         {
             systemInstruction = new { parts = new[] { new { text = systemInstruction } } },
             contents          = new[] { new { parts } },
-            generationConfig  = new { responseMimeType = "application/json", responseSchema }
+            generationConfig  = new { responseMimeType = "application/json", responseSchema },
+            safetySettings = SafetySettings
         };
 
         var jsonRequest = JsonSerializer.Serialize(body, options);
@@ -179,9 +191,23 @@ public sealed class GeminiStructuredClient : ILlmStructuredClient
                 if (usage.TryGetProperty("candidatesTokenCount", out var ct)) outputTokens = ct.GetInt32();
             }
 
-            var candidate = doc.RootElement.GetProperty("candidates")[0];
+            if (!doc.RootElement.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
+            {
+                _logger.LogWarning("Cliente LLM (Gemini): la respuesta no incluyó candidates (posible bloqueo de seguridad).");
+                GenAiTelemetry.RecordError(activity, "blocked: no candidates");
+                return null;
+            }
+
+            var candidate = candidates[0];
             var finishReason = candidate.TryGetProperty("finishReason", out var fr) ? fr.GetString() : null;
             GenAiTelemetry.RecordUsage(activity, inputTokens, outputTokens, finishReason);
+
+            if (finishReason == "SAFETY")
+            {
+                _logger.LogWarning("Cliente LLM (Gemini): respuesta bloqueada por safetySettings (finishReason=SAFETY).");
+                GenAiTelemetry.RecordError(activity, "blocked: SAFETY");
+                return null;
+            }
 
             var candidateText = candidate
                 .GetProperty("content")

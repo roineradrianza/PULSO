@@ -57,10 +57,18 @@ public class Worker : BackgroundService
         "• \"Hay una persona atrapada en un derrumbe en Petare\"\n" +
         "• Se necesitan insumos en catia en la calle XXXX";
 
+    // Mensaje al ciudadano cuando su imagen no pasa la moderación de contenido —
+    // no se descarta el reporte, solo se omite la foto (ver ProcessMessageAsync).
+    private const string InappropriateMediaMessage =
+        "No pudimos procesar la imagen que enviaste porque no cumple con nuestras " +
+        "políticas de contenido. Si tu reporte es real, puedes reenviarlo describiéndolo " +
+        "por texto, sin la imagen.";
+
     private readonly ILogger<Worker>          _logger;
     private readonly IConnectionMultiplexer   _redis;
     private readonly IGeminiTriageService     _geminiTriage;
     private readonly IMediaDownloadService    _mediaDownload;
+    private readonly IMediaStorageService     _mediaStorage;
     private readonly IIncidentRepository      _incidentRepo;
     private readonly IOutboundMessageService  _outbound;
     private readonly IGeocodingService        _geocoding;
@@ -71,6 +79,7 @@ public class Worker : BackgroundService
         IConnectionMultiplexer   redis,
         IGeminiTriageService     geminiTriage,
         IMediaDownloadService    mediaDownload,
+        IMediaStorageService     mediaStorage,
         IIncidentRepository      incidentRepo,
         IOutboundMessageService  outbound,
         IGeocodingService        geocoding,
@@ -80,6 +89,7 @@ public class Worker : BackgroundService
         _redis         = redis;
         _geminiTriage  = geminiTriage;
         _mediaDownload = mediaDownload;
+        _mediaStorage  = mediaStorage;
         _incidentRepo  = incidentRepo;
         _outbound      = outbound;
         _geocoding     = geocoding;
@@ -287,6 +297,16 @@ public class Worker : BackgroundService
             return;
         }
 
+        // 2c. Compuerta de moderación de contenido: aplica a CUALQUIER reporte con imagen,
+        //     no solo mascotas. No se descarta el reporte (podría ser real con una foto
+        //     mala adjunta) — solo se avisa al ciudadano y, más abajo, se omite la subida.
+        if (triage.IsInappropriateContent == true)
+        {
+            activity?.SetTag("pulso.moderation.rejected", true);
+            _logger.LogWarning("La imagen adjunta fue marcada como contenido inapropiado; se omite la subida.");
+            await _outbound.SendTextAsync(payload, InappropriateMediaMessage, cancellationToken);
+        }
+
         // Texto a almacenar: la transcripción (audio); la descripción de la IA cuando el
         // ciudadano no escribió nada (solo media, p. ej. imagen sin caption); o su texto.
         string rawText;
@@ -355,6 +375,25 @@ public class Worker : BackgroundService
         {
             await _incidentRepo.SaveTranscriptionAsync(
                 incidentId.Value, triage.Transcription, cancellationToken);
+        }
+
+        // 7b. Subir la foto (si la hay y pasó moderación) DESPUÉS del insert: el nombre
+        //     del objeto en Supabase depende del incidentId. Sigue el mismo patrón que
+        //     la transcripción: un UPDATE de seguimiento, sin tocar el stored procedure.
+        if (media is { Kind: MediaKind.Image } && triage.IsInappropriateContent != true && incidentId.HasValue)
+        {
+            var mediaUrl = await _mediaStorage.UploadAsync(
+                Convert.FromBase64String(media.Base64Data), media.MimeType, incidentId.Value, cancellationToken);
+            if (mediaUrl is not null)
+            {
+                await _incidentRepo.SaveMediaUrlAsync(incidentId.Value, mediaUrl, cancellationToken);
+            }
+        }
+
+        // 7c. Guardar la señal perdida/encontrada si el reporte es sobre una mascota.
+        if (!string.IsNullOrEmpty(triage.PetReportType) && incidentId.HasValue)
+        {
+            await _incidentRepo.SavePetReportTypeAsync(incidentId.Value, triage.PetReportType, cancellationToken);
         }
 
         // 8. Confirmación final al ciudadano si el reporte quedó con ubicación (GPS o
