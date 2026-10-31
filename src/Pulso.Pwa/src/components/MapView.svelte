@@ -539,11 +539,11 @@
   onMount(() => {
     map = L.map(mapEl, { center: [10.4806, -66.9036], zoom: 12, zoomControl: true });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 20
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      subdomains: 'abc',
+      maxZoom: 19
     }).addTo(map);
 
     clusterGroup = L.markerClusterGroup({
@@ -639,6 +639,12 @@
     color: var(--text-main);
     margin: 0;
     font-weight: 500;
+  }
+  :global(#map) {
+    background-color: var(--bg-color);
+  }
+  :global(.leaflet-tile-pane) {
+    filter: invert(100%) hue-rotate(180deg) saturate(60%) brightness(92%) contrast(90%);
   }
   :global(.custom-marker-icon) {
     cursor: pointer !important;

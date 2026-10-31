@@ -45,10 +45,10 @@ export default defineConfig({
         // Cachear los azulejos del mapa en tiempo de ejecución para resiliencia offline
         runtimeCaching: [
           {
-            urlPattern: ({ url }) => url.hostname.endsWith('basemaps.cartocdn.com'),
+            urlPattern: ({ url }) => url.hostname.endsWith('tile.openstreetmap.org'),
             handler: 'CacheFirst',
             options: {
-              cacheName: 'pulso-map-tiles',
+              cacheName: 'pulso-osm-tiles',
               expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [0, 200] }
             }
